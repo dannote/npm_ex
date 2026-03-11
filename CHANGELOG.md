@@ -1,0 +1,12 @@
+# Changelog
+
+## 0.1.0
+
+Initial release.
+
+- `mix npm.install` — resolve and install all deps from `package.json`
+- `mix npm.install <pkg>` — add a package and install
+- PubGrub dependency resolution via `hex_solver`
+- npm registry client with abbreviated packuments
+- SHA-512 integrity verification
+- `npm.lock` lockfile for reproducible installs
