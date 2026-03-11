@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- `mix npm.remove` — remove a package from `package.json`
+- `mix npm.list` — show installed packages with versions
+- `mix npm.install --frozen` — fail if lockfile is stale (CI mode)
+- Fix scoped package parsing (`@scope/pkg@^1.0` was splitting incorrectly)
+- Timing output for resolve and install steps
+- Rename `install/2` to `add/2` in the public API
+- Expand test suite to 64 tests
+
 ## 0.2.0
 
 - Global package cache at `~/.npm_ex/cache/` — download once, reuse across projects
