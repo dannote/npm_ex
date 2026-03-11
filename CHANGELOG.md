@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Switch from `:httpc` to Req for HTTP
+- Add `mix npm.get` task
+- Add credo, ex_slop, ex_dna, dialyzer
+- Add unit and integration tests
+- Add GitHub Actions CI
+
 ## 0.1.0
 
 Initial release.
