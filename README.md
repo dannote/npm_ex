@@ -1,7 +1,7 @@
 # NPM
 
 [![Hex.pm](https://img.shields.io/hexpm/v/npm.svg)](https://hex.pm/packages/npm)
-[![CI](https://github.com/dannote/npm_ex/actions/workflows/ci.yml/badge.svg)](https://github.com/dannote/npm_ex/actions/workflows/ci.yml)
+[![CI](https://github.com/elixir-volt/npm_ex/actions/workflows/ci.yml/badge.svg)](https://github.com/elixir-volt/npm_ex/actions/workflows/ci.yml)
 
 npm package manager for Elixir — no Node.js required.
 
