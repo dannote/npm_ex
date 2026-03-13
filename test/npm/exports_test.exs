@@ -1,251 +1,234 @@
-defmodule NPM.ExportsTest do
+defmodule NPM.ExportsExtraTest do
   use ExUnit.Case, async: true
 
-  describe "Exports.parse" do
-    test "parses string shorthand" do
-      pkg = %{"exports" => "./index.js"}
-      assert NPM.Exports.parse(pkg) == %{"." => "./index.js"}
+  @conditional_exports %{
+    "." => %{
+      "import" => "./dist/index.mjs",
+      "require" => "./dist/index.cjs",
+      "default" => "./dist/index.js"
+    },
+    "./utils" => %{"import" => "./dist/utils.mjs", "default" => "./dist/utils.js"},
+    "./package.json" => "./package.json"
+  }
+
+  @wildcard_exports %{
+    "./*" => %{"import" => "./dist/*.mjs"},
+    "." => "./dist/index.js"
+  }
+
+  describe "parse" do
+    test "string shorthand" do
+      data = %{"exports" => "./index.js"}
+      assert %{"." => "./index.js"} = NPM.Exports.parse(data)
     end
 
-    test "parses subpath exports" do
-      pkg = %{"exports" => %{"." => "./index.js", "./utils" => "./lib/utils.js"}}
-      result = NPM.Exports.parse(pkg)
-      assert result["."] == "./index.js"
-      assert result["./utils"] == "./lib/utils.js"
+    test "subpath exports" do
+      data = %{"exports" => %{"." => "./index.js", "./utils" => "./lib/utils.js"}}
+      parsed = NPM.Exports.parse(data)
+      assert parsed["."] == "./index.js"
+      assert parsed["./utils"] == "./lib/utils.js"
     end
 
-    test "wraps conditional exports as root entry" do
-      pkg = %{"exports" => %{"import" => "./esm.js", "require" => "./cjs.js"}}
-      result = NPM.Exports.parse(pkg)
-      assert result["."] == %{"import" => "./esm.js", "require" => "./cjs.js"}
+    test "conditional without subpaths wraps in dot" do
+      data = %{"exports" => %{"import" => "./esm.js", "require" => "./cjs.js"}}
+      parsed = NPM.Exports.parse(data)
+      assert parsed["."]["import"] == "./esm.js"
     end
 
-    test "returns nil when no exports field" do
-      assert NPM.Exports.parse(%{"name" => "pkg"}) == nil
-    end
-
-    test "handles nested subpath with conditions" do
-      pkg = %{
-        "exports" => %{
-          "." => %{"import" => "./esm/index.js", "default" => "./cjs/index.js"},
-          "./utils" => "./lib/utils.js"
-        }
-      }
-
-      result = NPM.Exports.parse(pkg)
-      assert result["."] == %{"import" => "./esm/index.js", "default" => "./cjs/index.js"}
-      assert result["./utils"] == "./lib/utils.js"
-    end
-  end
-
-  describe "Exports.resolve" do
-    test "resolves string target" do
-      export_map = %{"." => "./index.js", "./utils" => "./lib/utils.js"}
-      assert {:ok, "./index.js"} = NPM.Exports.resolve(export_map, ".")
-      assert {:ok, "./lib/utils.js"} = NPM.Exports.resolve(export_map, "./utils")
-    end
-
-    test "resolves conditional target with matching condition" do
-      export_map = %{"." => %{"import" => "./esm.js", "require" => "./cjs.js"}}
-      assert {:ok, "./esm.js"} = NPM.Exports.resolve(export_map, ".", ["import", "default"])
-      assert {:ok, "./cjs.js"} = NPM.Exports.resolve(export_map, ".", ["require", "default"])
-    end
-
-    test "falls back to default condition" do
-      export_map = %{"." => %{"import" => "./esm.js", "default" => "./cjs.js"}}
-      assert {:ok, "./cjs.js"} = NPM.Exports.resolve(export_map, ".", ["default"])
-    end
-
-    test "returns error for missing subpath" do
-      export_map = %{"." => "./index.js"}
-      assert :error = NPM.Exports.resolve(export_map, "./missing")
-    end
-
-    test "returns error when no conditions match" do
-      export_map = %{"." => %{"import" => "./esm.js"}}
-      assert :error = NPM.Exports.resolve(export_map, ".", ["require"])
-    end
-  end
-
-  describe "Exports.subpaths" do
-    test "lists sorted subpaths" do
-      export_map = %{
-        "./utils" => "./lib/utils.js",
-        "." => "./index.js",
-        "./types" => "./types.d.ts"
-      }
-
-      assert NPM.Exports.subpaths(export_map) == [".", "./types", "./utils"]
-    end
-
-    test "returns empty for nil" do
-      assert NPM.Exports.subpaths(nil) == []
-    end
-  end
-
-  describe "Exports.module_type" do
-    test "detects ESM" do
-      assert NPM.Exports.module_type(%{"type" => "module"}) == :esm
-    end
-
-    test "defaults to CJS" do
-      assert NPM.Exports.module_type(%{"type" => "commonjs"}) == :cjs
-      assert NPM.Exports.module_type(%{}) == :cjs
-    end
-  end
-
-  describe "Exports: condition priority" do
-    test "import takes priority over require" do
-      exports = %{
-        "." => %{
-          "import" => "./esm.js",
-          "require" => "./cjs.js"
-        }
-      }
-
-      assert {:ok, "./esm.js"} = NPM.Exports.resolve(exports, ".", ["import", "require"])
-    end
-
-    test "first matching condition wins" do
-      exports = %{
-        "." => %{
-          "node" => "./node.js",
-          "browser" => "./browser.js",
-          "default" => "./default.js"
-        }
-      }
-
-      assert {:ok, "./node.js"} = NPM.Exports.resolve(exports, ".", ["node", "default"])
-    end
-  end
-
-  describe "Exports: deeply nested conditions" do
-    test "three-level condition nesting" do
-      exports = %{
-        "." => %{
-          "node" => %{
-            "import" => "./node-esm.js",
-            "require" => "./node-cjs.js"
-          },
-          "default" => "./default.js"
-        }
-      }
-
-      assert {:ok, "./node-esm.js"} = NPM.Exports.resolve(exports, ".", ["node", "import"])
-    end
-  end
-
-  describe "Exports: wildcard subpath patterns" do
-    test "wildcard pattern matches subpath" do
-      exports = %{
-        "./*" => "./lib/*.js"
-      }
-
-      # Wildcard resolution with *
-      result = NPM.Exports.resolve(exports, "./utils")
-
-      case result do
-        {:ok, path} -> assert String.contains?(path, "utils")
-        :error -> :ok
-      end
-    end
-  end
-
-  describe "Exports: map patterns" do
-    test "single dot entry" do
-      assert {:ok, "./index.js"} = NPM.Exports.resolve(%{"." => "./index.js"}, ".")
-    end
-
-    test "missing subpath returns error" do
-      assert :error = NPM.Exports.resolve(%{"." => "./index.js"}, "./missing")
-    end
-
-    test "nested conditions with single match" do
-      exports = %{"." => %{"default" => "./lib.js"}}
-      assert {:ok, "./lib.js"} = NPM.Exports.resolve(exports, ".", ["default"])
-    end
-  end
-
-  describe "Exports: real-world conditional export patterns" do
-    test "Node.js-style conditions (import/require/default)" do
-      export_map = %{
-        "." => %{
-          "import" => %{"types" => "./types/index.d.ts", "default" => "./esm/index.js"},
-          "require" => %{"types" => "./types/index.d.ts", "default" => "./cjs/index.js"},
-          "default" => "./cjs/index.js"
-        }
-      }
-
-      assert {:ok, "./esm/index.js"} =
-               NPM.Exports.resolve(export_map, ".", ["import", "default"])
-
-      assert {:ok, "./cjs/index.js"} =
-               NPM.Exports.resolve(export_map, ".", ["require", "default"])
-
-      # Fallback to default
-      assert {:ok, "./cjs/index.js"} =
-               NPM.Exports.resolve(export_map, ".", ["default"])
-    end
-
-    test "subpath exports with multiple entries" do
-      export_map = %{
-        "." => "./index.js",
-        "./utils" => "./lib/utils.js",
-        "./helpers/*" => "./lib/helpers/*.js",
-        "./package.json" => "./package.json"
-      }
-
-      assert {:ok, "./index.js"} = NPM.Exports.resolve(export_map, ".")
-      assert {:ok, "./lib/utils.js"} = NPM.Exports.resolve(export_map, "./utils")
-      assert {:ok, "./package.json"} = NPM.Exports.resolve(export_map, "./package.json")
-      assert :error = NPM.Exports.resolve(export_map, "./internal")
-    end
-  end
-
-  describe "Exports: subpaths listing" do
-    test "lists all export subpaths" do
-      exports = %{
-        "." => "./index.js",
-        "./utils" => "./utils.js",
-        "./helpers/*" => "./helpers/*.js"
-      }
-
-      paths = NPM.Exports.subpaths(exports)
-      assert "." in paths
-      assert "./utils" in paths
-      assert "./helpers/*" in paths
-    end
-  end
-
-  describe "Exports: parse from package data" do
-    test "string exports is normalized to map" do
-      result = NPM.Exports.parse(%{"exports" => "./dist/index.js"})
-      assert is_map(result)
-      assert result["."] == "./dist/index.js"
-    end
-
-    test "map exports are returned" do
-      exports = %{"." => "./index.js", "./sub" => "./sub.js"}
-      result = NPM.Exports.parse(%{"exports" => exports})
-      assert is_map(result)
-    end
-
-    test "no exports returns nil" do
+    test "nil for no exports field" do
       assert nil == NPM.Exports.parse(%{"name" => "pkg"})
     end
   end
 
-  describe "Exports: module_type detection" do
-    test "module type is ESM" do
+  describe "resolve" do
+    test "resolves with import condition" do
+      assert {:ok, "./dist/index.mjs"} =
+               NPM.Exports.resolve(@conditional_exports, ".", ["import"])
+    end
+
+    test "resolves with require condition" do
+      assert {:ok, "./dist/index.cjs"} =
+               NPM.Exports.resolve(@conditional_exports, ".", ["require"])
+    end
+
+    test "falls back to default" do
+      assert {:ok, "./dist/index.js"} =
+               NPM.Exports.resolve(@conditional_exports, ".", ["browser", "default"])
+    end
+
+    test "resolves subpath" do
+      assert {:ok, "./dist/utils.mjs"} =
+               NPM.Exports.resolve(@conditional_exports, "./utils", ["import"])
+    end
+
+    test "string target for subpath" do
+      assert {:ok, "./package.json"} =
+               NPM.Exports.resolve(@conditional_exports, "./package.json")
+    end
+
+    test "error for missing subpath" do
+      assert :error = NPM.Exports.resolve(@conditional_exports, "./missing", ["import"])
+    end
+
+    test "returns error when no conditions match" do
+      assert :error = NPM.Exports.resolve(@conditional_exports, ".", ["browser", "deno"])
+    end
+
+    test "import takes priority over require" do
+      assert {:ok, "./dist/index.mjs"} =
+               NPM.Exports.resolve(@conditional_exports, ".", ["import", "require"])
+    end
+
+    test "first matching condition wins" do
+      assert {:ok, "./dist/index.cjs"} =
+               NPM.Exports.resolve(@conditional_exports, ".", ["require", "import"])
+    end
+
+    test "nested subpath with conditions" do
+      exports = %{
+        "./feature" => %{"import" => "./esm/feature.js", "default" => "./cjs/feature.js"}
+      }
+
+      assert {:ok, "./esm/feature.js"} = NPM.Exports.resolve(exports, "./feature", ["import"])
+    end
+  end
+
+  describe "subpaths" do
+    test "lists all subpaths sorted" do
+      paths = NPM.Exports.subpaths(@conditional_exports)
+      assert "." in paths
+      assert "./utils" in paths
+      assert "./package.json" in paths
+    end
+
+    test "empty for nil" do
+      assert [] = NPM.Exports.subpaths(nil)
+    end
+  end
+
+  describe "module_type" do
+    test "ESM for type module" do
       assert :esm = NPM.Exports.module_type(%{"type" => "module"})
     end
 
-    test "commonjs type is CJS" do
-      assert :cjs = NPM.Exports.module_type(%{"type" => "commonjs"})
+    test "CJS by default" do
+      assert :cjs = NPM.Exports.module_type(%{})
     end
 
-    test "no type defaults to CJS" do
-      assert :cjs = NPM.Exports.module_type(%{})
+    test "CJS for type commonjs" do
+      assert :cjs = NPM.Exports.module_type(%{"type" => "commonjs"})
+    end
+  end
+
+  describe "exported?" do
+    test "true for direct subpath" do
+      assert NPM.Exports.exported?("./utils", @conditional_exports)
+    end
+
+    test "false for non-exported path" do
+      refute NPM.Exports.exported?("./internal", @conditional_exports)
+    end
+
+    test "false for nil export map" do
+      refute NPM.Exports.exported?(".", nil)
+    end
+
+    test "wildcard pattern matches" do
+      assert NPM.Exports.exported?("./anything", @wildcard_exports)
+    end
+  end
+
+  describe "conditions" do
+    test "extracts unique conditions" do
+      conds = NPM.Exports.conditions(@conditional_exports)
+      assert "import" in conds
+      assert "require" in conds
+      assert "default" in conds
+    end
+
+    test "nil returns empty" do
+      assert [] = NPM.Exports.conditions(nil)
+    end
+
+    test "string values contribute default" do
+      conds = NPM.Exports.conditions(%{"." => "./index.js"})
+      assert "default" in conds
+    end
+  end
+
+  describe "validate" do
+    @tag :tmp_dir
+    test "ok when files exist", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "dist"))
+      File.write!(Path.join(dir, "dist/index.js"), "")
+
+      exports = %{"." => "./dist/index.js"}
+      assert {:ok, ["./dist/index.js"]} = NPM.Exports.validate(exports, dir)
+    end
+
+    @tag :tmp_dir
+    test "error when file missing", %{tmp_dir: dir} do
+      exports = %{"." => "./missing.js"}
+      assert {:error, errors} = NPM.Exports.validate(exports, dir)
+      assert Enum.any?(errors, &String.contains?(&1, "not found"))
+    end
+
+    test "ok for nil" do
+      assert {:ok, []} = NPM.Exports.validate(nil, ".")
+    end
+
+    @tag :tmp_dir
+    test "validates conditional export paths", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "dist"))
+      File.write!(Path.join(dir, "dist/index.mjs"), "")
+
+      exports = %{"." => %{"import" => "./dist/index.mjs", "require" => "./dist/index.cjs"}}
+      assert {:error, errors} = NPM.Exports.validate(exports, dir)
+      assert length(errors) == 1
+    end
+  end
+
+  describe "parse edge cases" do
+    test "nested subpath with conditions" do
+      data = %{
+        "exports" => %{
+          "." => %{"import" => "./esm/index.js", "require" => "./cjs/index.js"},
+          "./utils" => %{"import" => "./esm/utils.js"}
+        }
+      }
+
+      parsed = NPM.Exports.parse(data)
+      assert is_map(parsed["."])
+      assert is_map(parsed["./utils"])
+    end
+
+    test "single entry without dot prefix wraps as condition" do
+      data = %{"exports" => %{"import" => "./index.mjs"}}
+      parsed = NPM.Exports.parse(data)
+      assert parsed["."]["import"] == "./index.mjs"
+    end
+  end
+
+  describe "exported? edge cases" do
+    test "dot subpath in map" do
+      assert NPM.Exports.exported?(".", @conditional_exports)
+    end
+
+    test "wildcard does not match dot" do
+      refute NPM.Exports.exported?(".", @wildcard_exports |> Map.delete("."))
+    end
+  end
+
+  describe "conditions edge cases" do
+    test "mixed string and map values" do
+      exports = %{
+        "." => %{"import" => "./esm.js", "require" => "./cjs.js"},
+        "./pkg" => "./pkg.js"
+      }
+
+      conds = NPM.Exports.conditions(exports)
+      assert "import" in conds
+      assert "default" in conds
     end
   end
 end

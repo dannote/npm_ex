@@ -66,6 +66,47 @@ defmodule NPM.Exports do
   def module_type(%{"type" => "module"}), do: :esm
   def module_type(_), do: :cjs
 
+  @doc """
+  Checks if a subpath is exported by the export map.
+  """
+  @spec exported?(String.t(), map() | nil) :: boolean()
+  def exported?(_subpath, nil), do: false
+
+  def exported?(subpath, export_map) when is_map(export_map) do
+    Map.has_key?(export_map, subpath) or has_wildcard_match?(subpath, export_map)
+  end
+
+  def exported?(_, _), do: false
+
+  @doc """
+  Extracts all conditions used in the export map.
+  """
+  @spec conditions(map() | nil) :: [String.t()]
+  def conditions(nil), do: []
+
+  def conditions(export_map) when is_map(export_map) do
+    export_map
+    |> Map.values()
+    |> Enum.flat_map(&extract_conditions/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  @doc """
+  Validates that all export paths resolve to existing files.
+  """
+  @spec validate(map() | nil, String.t()) :: {:ok, [String.t()]} | {:error, [String.t()]}
+  def validate(nil, _base_dir), do: {:ok, []}
+
+  def validate(export_map, base_dir) when is_map(export_map) do
+    paths = collect_paths(export_map)
+    missing = Enum.reject(paths, &File.exists?(Path.join(base_dir, &1)))
+
+    if missing == [],
+      do: {:ok, paths},
+      else: {:error, Enum.map(missing, &"#{&1} not found")}
+  end
+
   defp subpath_exports?(map) do
     Map.keys(map) |> Enum.any?(&String.starts_with?(&1, "."))
   end
@@ -78,5 +119,31 @@ defmodule NPM.Exports do
         nested when is_map(nested) -> resolve_conditions(nested, conditions)
       end
     end)
+  end
+
+  defp has_wildcard_match?(subpath, export_map) do
+    Enum.any?(export_map, fn {pattern, _} -> wildcard_matches?(subpath, pattern) end)
+  end
+
+  defp wildcard_matches?(subpath, pattern) do
+    case String.split(pattern, "*", parts: 2) do
+      [prefix, suffix] ->
+        String.starts_with?(subpath, prefix) and String.ends_with?(subpath, suffix)
+
+      _ ->
+        false
+    end
+  end
+
+  defp extract_conditions(entry) when is_map(entry), do: Map.keys(entry)
+  defp extract_conditions(_), do: ["default"]
+
+  defp collect_paths(export_map) do
+    Enum.flat_map(export_map, fn
+      {_key, value} when is_binary(value) -> [value]
+      {_key, value} when is_map(value) -> Map.values(value) |> Enum.filter(&is_binary/1)
+      _ -> []
+    end)
+    |> Enum.uniq()
   end
 end
