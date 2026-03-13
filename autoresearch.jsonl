@@ -45,3 +45,4 @@
 {"run":44,"commit":"c70b56e","metric":378,"metrics":{},"status":"keep","description":"Add NPM.DepTree (tree build, flatten, paths_to, depth, count), mix npm.licenses — 13 new tests","timestamp":1773399086486,"segment":0}
 {"run":45,"commit":"6939890","metric":391,"metrics":{},"status":"keep","description":"Add NPM.PackageSpec (structured specifier parser), mix npm.completion — 13 new tests","timestamp":1773399139526,"segment":0}
 {"run":46,"commit":"0a821af","metric":400,"metrics":{},"status":"keep","description":"Add NPM.Manifest (structured package manifest), mix npm.completion — 400 tests milestone","timestamp":1773399200876,"segment":0}
+{"run":47,"commit":"36c705d","metric":408,"metrics":{},"status":"keep","description":"Add NPM.DepGraph (adjacency list, fan-in/out, leaves, roots, cycles), mix npm.stats — 8 new tests","timestamp":1773399280067,"segment":0}

@@ -2688,6 +2688,113 @@ defmodule NPMTest do
     end
   end
 
+  # --- NodeModules ---
+
+  describe "NodeModules.installed" do
+    @tag :tmp_dir
+    test "lists installed packages", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm, "lodash"))
+      File.mkdir_p!(Path.join(nm, "express"))
+
+      installed = NPM.NodeModules.installed(nm)
+      assert "express" in installed
+      assert "lodash" in installed
+    end
+
+    @tag :tmp_dir
+    test "lists scoped packages", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join([nm, "@babel", "core"]))
+
+      installed = NPM.NodeModules.installed(nm)
+      assert "@babel/core" in installed
+    end
+
+    @tag :tmp_dir
+    test "skips dotfiles", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm, ".bin"))
+      File.mkdir_p!(Path.join(nm, "real-pkg"))
+
+      installed = NPM.NodeModules.installed(nm)
+      refute ".bin" in installed
+      assert "real-pkg" in installed
+    end
+
+    test "handles missing dir" do
+      assert [] = NPM.NodeModules.installed("/nonexistent/node_modules")
+    end
+  end
+
+  describe "NodeModules.version" do
+    @tag :tmp_dir
+    test "reads version from package.json", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      pkg = Path.join(nm, "lodash")
+      File.mkdir_p!(pkg)
+      File.write!(Path.join(pkg, "package.json"), ~s({"version": "4.17.21"}))
+
+      assert "4.17.21" = NPM.NodeModules.version("lodash", nm)
+    end
+
+    @tag :tmp_dir
+    test "returns nil for missing package", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(nm)
+
+      assert nil == NPM.NodeModules.version("missing", nm)
+    end
+  end
+
+  describe "NodeModules.diff" do
+    @tag :tmp_dir
+    test "finds missing and extra packages", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm, "installed-pkg"))
+
+      lockfile = %{
+        "locked-pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}},
+        "installed-pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      {missing, extra} = NPM.NodeModules.diff(lockfile, nm)
+      assert "locked-pkg" in missing
+      refute "installed-pkg" in missing
+      refute "installed-pkg" in extra
+    end
+  end
+
+  describe "NodeModules.disk_size" do
+    @tag :tmp_dir
+    test "computes size", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      pkg = Path.join(nm, "pkg")
+      File.mkdir_p!(pkg)
+      File.write!(Path.join(pkg, "index.js"), String.duplicate("x", 100))
+
+      size = NPM.NodeModules.disk_size(nm)
+      assert size >= 100
+    end
+
+    test "returns 0 for missing dir" do
+      assert 0 = NPM.NodeModules.disk_size("/nonexistent/nm")
+    end
+  end
+
+  describe "NodeModules.file_count" do
+    @tag :tmp_dir
+    test "counts files", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      pkg = Path.join(nm, "pkg")
+      File.mkdir_p!(pkg)
+      File.write!(Path.join(pkg, "a.js"), "")
+      File.write!(Path.join(pkg, "b.js"), "")
+
+      assert NPM.NodeModules.file_count(nm) >= 2
+    end
+  end
+
   # --- DepGraph ---
 
   describe "DepGraph.adjacency_list" do
