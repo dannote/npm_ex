@@ -5426,6 +5426,97 @@ defmodule NPMTest do
     end
   end
 
+  describe "Linker: hoist preserves all package versions" do
+    test "single-version packages each appear once" do
+      lockfile = %{
+        "x" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}},
+        "y" => %{version: "2.0.0", integrity: "", tarball: "", dependencies: %{}},
+        "z" => %{version: "3.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      tree = NPM.Linker.hoist(lockfile)
+      versions = Map.new(tree)
+      assert versions["x"] == "1.0.0"
+      assert versions["y"] == "2.0.0"
+      assert versions["z"] == "3.0.0"
+    end
+  end
+
+  describe "Integrity: algorithm extraction" do
+    test "extracts sha512 algorithm" do
+      assert "sha512" = NPM.Integrity.algorithm("sha512-abc")
+    end
+
+    test "returns nil for unsupported algorithm" do
+      assert nil == NPM.Integrity.algorithm("md5-abc")
+    end
+  end
+
+  describe "VersionUtil: parse_triple edge cases" do
+    test "parse_triple with zero version" do
+      assert {:ok, {0, 0, 0}} = NPM.VersionUtil.parse_triple("0.0.0")
+    end
+
+    test "parse_triple with large numbers" do
+      assert {:ok, {100, 200, 300}} = NPM.VersionUtil.parse_triple("100.200.300")
+    end
+  end
+
+  describe "Cache: package_dir structure" do
+    test "package_dir path includes package name" do
+      dir = NPM.Cache.package_dir("express", "4.21.2")
+      assert String.contains?(dir, "express")
+      assert String.contains?(dir, "4.21.2")
+    end
+  end
+
+  describe "DepTree: count with deep tree" do
+    test "counts all transitive deps" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"b" => "^1"}},
+        "b" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"c" => "^1"}},
+        "c" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"d" => "^1"}},
+        "d" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      tree = NPM.DepTree.build(lockfile, %{"a" => "^1.0"})
+      assert NPM.DepTree.count(tree) == 4
+    end
+  end
+
+  describe "SemverUtil: max_satisfying precision" do
+    test "returns exact highest satisfying" do
+      versions = ["1.0.0", "1.0.1", "1.0.2", "1.1.0", "2.0.0"]
+      {:ok, v} = NPM.SemverUtil.max_satisfying(versions, "~1.0.0")
+      assert v == "1.0.2"
+    end
+  end
+
+  describe "Format: bytes precision" do
+    test "small bytes show exact count" do
+      assert "500 B" = NPM.Format.bytes(500)
+    end
+  end
+
+  describe "RegistryMirror: get_mirror" do
+    test "get_mirror by name returns URL" do
+      url = NPM.RegistryMirror.get_mirror("china")
+      assert url == "https://registry.npmmirror.com"
+    end
+
+    test "get_mirror returns nil for unknown" do
+      assert nil == NPM.RegistryMirror.get_mirror("nonexistent")
+    end
+  end
+
+  describe "Resolver: resolve with overrides preserves them" do
+    test "overrides don't affect empty resolution" do
+      NPM.Resolver.clear_cache()
+      {:ok, result} = NPM.Resolver.resolve(%{}, overrides: %{"any" => "1.0.0"})
+      assert result == %{}
+    end
+  end
+
   describe "Config: parse_npmrc handles env vars" do
     test "parses key=value with env var references" do
       content = "registry=${NPM_REGISTRY:-https://registry.npmjs.org/}"
