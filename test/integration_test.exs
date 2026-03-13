@@ -775,6 +775,34 @@ defmodule NPM.IntegrationTest do
     end
   end
 
+  describe "npm compatibility: override resolution" do
+    setup do
+      NPM.Resolver.clear_cache()
+      :ok
+    end
+
+    test "overrides force specific version" do
+      deps = %{"depd" => "^2.0.0"}
+      overrides = %{"depd" => "2.0.0"}
+
+      {:ok, result} = NPM.Resolver.resolve(deps, overrides: overrides)
+      assert result["depd"] == "2.0.0"
+    end
+  end
+
+  describe "npm compatibility: scoped package resolution" do
+    setup do
+      NPM.Resolver.clear_cache()
+      :ok
+    end
+
+    test "resolves scoped package" do
+      deps = %{"@sindresorhus/is" => "^5.0.0"}
+      {:ok, result} = NPM.Resolver.resolve(deps)
+      assert result["@sindresorhus/is"] =~ ~r/^5\.\d+\.\d+$/
+    end
+  end
+
   describe "npm compatibility: resolution determinism" do
     setup do
       NPM.Resolver.clear_cache()
