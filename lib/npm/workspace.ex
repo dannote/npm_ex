@@ -102,23 +102,25 @@ defmodule NPM.Workspace do
     end
   end
 
-  defp topo_sort(graph) do
-    sorted = do_topo_sort(graph, [], MapSet.new())
-    Enum.reverse(sorted)
-  end
+  defp topo_sort(adj) do
+    g = :digraph.new()
 
-  defp do_topo_sort(graph, sorted, visited) do
-    remaining = Map.keys(graph) -- sorted
+    try do
+      Enum.each(adj, fn {name, _} -> :digraph.add_vertex(g, name) end)
 
-    case Enum.find(remaining, fn node ->
-           deps = Map.get(graph, node, [])
-           Enum.all?(deps, &(&1 in sorted))
-         end) do
-      nil ->
-        sorted ++ (remaining -- sorted)
+      Enum.each(adj, fn {name, deps} ->
+        Enum.each(deps, fn dep ->
+          :digraph.add_vertex(g, dep)
+          :digraph.add_edge(g, dep, name)
+        end)
+      end)
 
-      node ->
-        do_topo_sort(graph, [node | sorted], MapSet.put(visited, node))
+      case :digraph_utils.topsort(g) do
+        false -> Map.keys(adj)
+        sorted -> sorted
+      end
+    after
+      :digraph.delete(g)
     end
   end
 end

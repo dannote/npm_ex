@@ -64,23 +64,44 @@ defmodule NPM.DepGraph do
 
   @doc """
   Detect circular dependencies. Returns list of cycle paths.
+
+  Uses Erlang's `:digraph_utils` for reliable cycle detection.
   """
   @spec cycles(%{String.t() => [String.t()]}) :: [[String.t()]]
   def cycles(adj) do
-    adj
-    |> Map.keys()
-    |> Enum.flat_map(&detect_cycle(adj, &1, [], MapSet.new()))
-    |> Enum.uniq_by(&Enum.sort/1)
-  end
+    g = :digraph.new()
 
-  defp detect_cycle(adj, current, path, visited) do
-    if MapSet.member?(visited, current) do
-      cycle_start = Enum.find_index(path, &(&1 == current))
-      if cycle_start, do: [Enum.drop(path, cycle_start) ++ [current]], else: []
-    else
-      visited = MapSet.put(visited, current)
-      deps = Map.get(adj, current, [])
-      Enum.flat_map(deps, &detect_cycle(adj, &1, path ++ [current], visited))
+    try do
+      Enum.each(adj, fn {name, _} -> :digraph.add_vertex(g, name) end)
+
+      Enum.each(adj, fn {name, deps} ->
+        Enum.each(deps, fn dep ->
+          :digraph.add_vertex(g, dep)
+          :digraph.add_edge(g, name, dep)
+        end)
+      end)
+
+      components = :digraph_utils.cyclic_strong_components(g)
+
+      components
+      |> Enum.filter(fn component ->
+        length(component) > 1 or self_loop?(g, component)
+      end)
+      |> Enum.map(&Enum.sort/1)
+      |> Enum.uniq()
+    after
+      :digraph.delete(g)
     end
   end
+
+  defp self_loop?(g, [v]) do
+    Enum.any?(:digraph.out_edges(g, v), fn edge ->
+      {_, ^v, ^v, _} = :digraph.edge(g, edge)
+      true
+    end)
+  rescue
+    _ -> false
+  end
+
+  defp self_loop?(_, _), do: false
 end
