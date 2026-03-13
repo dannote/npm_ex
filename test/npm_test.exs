@@ -4741,6 +4741,27 @@ defmodule NPMTest do
     end
   end
 
+  describe "DepGraph: adjacency_list construction" do
+    test "handles empty lockfile" do
+      adj = NPM.DepGraph.adjacency_list(%{})
+      assert adj == %{}
+    end
+
+    test "sorts dependency names" do
+      lockfile = %{
+        "a" => %{
+          version: "1.0.0",
+          integrity: "",
+          tarball: "",
+          dependencies: %{"z" => "^1.0", "m" => "^1.0", "a" => "^1.0"}
+        }
+      }
+
+      adj = NPM.DepGraph.adjacency_list(lockfile)
+      assert adj["a"] == ["a", "m", "z"]
+    end
+  end
+
   describe "EnvCheck: engine checks" do
     test "check_engines with node requirement" do
       result = NPM.EnvCheck.check_engines(%{"node" => ">=14.0.0"})
