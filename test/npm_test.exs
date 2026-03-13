@@ -4255,6 +4255,42 @@ defmodule NPMTest do
 
   # --- NPMSemver: additional ported edge cases ---
 
+  describe "Exports: real-world conditional export patterns" do
+    test "Node.js-style conditions (import/require/default)" do
+      export_map = %{
+        "." => %{
+          "import" => %{"types" => "./types/index.d.ts", "default" => "./esm/index.js"},
+          "require" => %{"types" => "./types/index.d.ts", "default" => "./cjs/index.js"},
+          "default" => "./cjs/index.js"
+        }
+      }
+
+      assert {:ok, "./esm/index.js"} =
+               NPM.Exports.resolve(export_map, ".", ["import", "default"])
+
+      assert {:ok, "./cjs/index.js"} =
+               NPM.Exports.resolve(export_map, ".", ["require", "default"])
+
+      # Fallback to default
+      assert {:ok, "./cjs/index.js"} =
+               NPM.Exports.resolve(export_map, ".", ["default"])
+    end
+
+    test "subpath exports with multiple entries" do
+      export_map = %{
+        "." => "./index.js",
+        "./utils" => "./lib/utils.js",
+        "./helpers/*" => "./lib/helpers/*.js",
+        "./package.json" => "./package.json"
+      }
+
+      assert {:ok, "./index.js"} = NPM.Exports.resolve(export_map, ".")
+      assert {:ok, "./lib/utils.js"} = NPM.Exports.resolve(export_map, "./utils")
+      assert {:ok, "./package.json"} = NPM.Exports.resolve(export_map, "./package.json")
+      assert :error = NPM.Exports.resolve(export_map, "./internal")
+    end
+  end
+
   describe "npm semver: comparator edge cases" do
     test "<=2.0.0 includes 2.0.0" do
       assert NPMSemver.matches?("2.0.0", "<=2.0.0")
