@@ -1640,6 +1640,64 @@ defmodule NPMTest do
     end
   end
 
+  # --- JSON roundtrip ---
+
+  describe "JSON encode/decode roundtrip" do
+    test "package.json style document" do
+      original = %{
+        "name" => "test-pkg",
+        "version" => "1.0.0",
+        "dependencies" => %{"a" => "^1.0", "b" => "~2.0"},
+        "devDependencies" => %{"c" => "^3.0"},
+        "scripts" => %{"test" => "jest"}
+      }
+
+      json = NPM.JSON.encode_pretty(original)
+      decoded = :json.decode(json)
+
+      assert decoded["name"] == original["name"]
+      assert decoded["dependencies"] == original["dependencies"]
+      assert decoded["devDependencies"] == original["devDependencies"]
+      assert decoded["scripts"] == original["scripts"]
+    end
+  end
+
+  # --- Tarball with unicode ---
+
+  describe "Tarball with binary content" do
+    @tag :tmp_dir
+    test "handles binary file content", %{tmp_dir: dir} do
+      binary_content = <<0, 1, 2, 3, 255, 254, 253>>
+      tgz = create_test_tgz(%{"package/binary.bin" => binary_content})
+
+      assert {:ok, 1} = NPM.Tarball.extract(tgz, dir)
+      assert File.read!(Path.join(dir, "binary.bin")) == binary_content
+    end
+  end
+
+  # --- Lockfile empty dependencies ---
+
+  describe "Lockfile empty deps handling" do
+    @tag :tmp_dir
+    test "handles entry with empty dependencies map", %{tmp_dir: dir} do
+      path = Path.join(dir, "npm.lock")
+
+      lockfile = %{
+        "simple" => %{
+          version: "1.0.0",
+          integrity: "sha512-abc==",
+          tarball: "https://example.com/simple.tgz",
+          dependencies: %{}
+        }
+      }
+
+      NPM.Lockfile.write(lockfile, path)
+      {:ok, read_back} = NPM.Lockfile.read(path)
+
+      assert read_back["simple"].dependencies == %{}
+    end
+  end
+
   # --- Helpers ---
 
   defp create_test_tgz(files) do

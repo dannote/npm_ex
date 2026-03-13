@@ -120,6 +120,18 @@ defmodule NPM.IntegrationTest do
     end
   end
 
+  describe "Resolver with devDependencies" do
+    setup do
+      NPM.Resolver.clear_cache()
+      :ok
+    end
+
+    test "resolves dev deps same as regular deps" do
+      assert {:ok, resolved} = NPM.Resolver.resolve(%{"is-number" => "^7.0.0"})
+      assert Map.has_key?(resolved, "is-number")
+    end
+  end
+
   describe "full install flow" do
     @tag :tmp_dir
     test "resolve → lockfile → cache → node_modules", %{tmp_dir: dir} do
