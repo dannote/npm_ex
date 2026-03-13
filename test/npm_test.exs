@@ -127,6 +127,134 @@ defmodule NPMTest do
     end
   end
 
+  # --- PackageJSON.read_all ---
+
+  describe "PackageJSON.read_all" do
+    @tag :tmp_dir
+    test "returns empty groups for missing file", %{tmp_dir: dir} do
+      assert {:ok, %{dependencies: %{}, dev_dependencies: %{}}} =
+               NPM.PackageJSON.read_all(Path.join(dir, "package.json"))
+    end
+
+    @tag :tmp_dir
+    test "reads both dependencies and devDependencies", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      File.write!(path, ~s({
+        "dependencies": {"lodash": "^4.17.0"},
+        "devDependencies": {"eslint": "^9.0.0"}
+      }))
+
+      assert {:ok, %{dependencies: deps, dev_dependencies: dev_deps}} =
+               NPM.PackageJSON.read_all(path)
+
+      assert deps == %{"lodash" => "^4.17.0"}
+      assert dev_deps == %{"eslint" => "^9.0.0"}
+    end
+
+    @tag :tmp_dir
+    test "returns empty maps when neither key exists", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"name": "my-app"}))
+
+      assert {:ok, %{dependencies: %{}, dev_dependencies: %{}}} =
+               NPM.PackageJSON.read_all(path)
+    end
+
+    @tag :tmp_dir
+    test "handles only devDependencies present", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"devDependencies": {"jest": "^29.0.0"}}))
+
+      assert {:ok, %{dependencies: %{}, dev_dependencies: %{"jest" => "^29.0.0"}}} =
+               NPM.PackageJSON.read_all(path)
+    end
+  end
+
+  # --- PackageJSON.add_dep with dev option ---
+
+  describe "PackageJSON.add_dep with dev" do
+    @tag :tmp_dir
+    test "adds to devDependencies when dev: true", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      assert :ok = NPM.PackageJSON.add_dep("eslint", "^9.0.0", path, dev: true)
+
+      {:ok, %{dependencies: deps, dev_dependencies: dev_deps}} =
+        NPM.PackageJSON.read_all(path)
+
+      assert deps == %{}
+      assert dev_deps == %{"eslint" => "^9.0.0"}
+    end
+
+    @tag :tmp_dir
+    test "adds to dependencies by default", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      assert :ok = NPM.PackageJSON.add_dep("lodash", "^4.17.0", path)
+
+      {:ok, %{dependencies: deps, dev_dependencies: dev_deps}} =
+        NPM.PackageJSON.read_all(path)
+
+      assert deps == %{"lodash" => "^4.17.0"}
+      assert dev_deps == %{}
+    end
+
+    @tag :tmp_dir
+    test "preserves both groups independently", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      NPM.PackageJSON.add_dep("lodash", "^4.17.0", path)
+      NPM.PackageJSON.add_dep("eslint", "^9.0.0", path, dev: true)
+
+      {:ok, %{dependencies: deps, dev_dependencies: dev_deps}} =
+        NPM.PackageJSON.read_all(path)
+
+      assert deps == %{"lodash" => "^4.17.0"}
+      assert dev_deps == %{"eslint" => "^9.0.0"}
+    end
+  end
+
+  # --- PackageJSON.remove_dep with devDependencies ---
+
+  describe "PackageJSON.remove_dep with devDependencies" do
+    @tag :tmp_dir
+    test "removes from devDependencies", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      File.write!(path, ~s({
+        "dependencies": {"lodash": "^4.0"},
+        "devDependencies": {"eslint": "^9.0"}
+      }))
+
+      assert :ok = NPM.PackageJSON.remove_dep("eslint", path)
+
+      {:ok, %{dependencies: deps, dev_dependencies: dev_deps}} =
+        NPM.PackageJSON.read_all(path)
+
+      assert deps == %{"lodash" => "^4.0"}
+      assert dev_deps == %{}
+    end
+
+    @tag :tmp_dir
+    test "prefers dependencies over devDependencies for same name", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      File.write!(path, ~s({
+        "dependencies": {"pkg": "^1.0"},
+        "devDependencies": {"pkg": "^2.0"}
+      }))
+
+      assert :ok = NPM.PackageJSON.remove_dep("pkg", path)
+
+      {:ok, %{dependencies: deps, dev_dependencies: dev_deps}} =
+        NPM.PackageJSON.read_all(path)
+
+      assert deps == %{}
+      assert dev_deps == %{"pkg" => "^2.0"}
+    end
+  end
+
   # --- Package spec parsing ---
 
   describe "parse_package_spec" do
@@ -556,6 +684,77 @@ defmodule NPMTest do
       System.delete_env("NPM_EX_CACHE_DIR")
 
       assert File.exists?(Path.join([nm_dir, "@scope", "pkg", "package.json"]))
+    end
+  end
+
+  # --- Linker.prune ---
+
+  describe "Linker.prune" do
+    @tag :tmp_dir
+    test "removes packages not in expected set", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm_dir, "keep-me"))
+      File.mkdir_p!(Path.join(nm_dir, "remove-me"))
+      File.write!(Path.join([nm_dir, "keep-me", "index.js"]), "kept")
+      File.write!(Path.join([nm_dir, "remove-me", "index.js"]), "removed")
+
+      NPM.Linker.prune(nm_dir, MapSet.new(["keep-me"]))
+
+      assert File.exists?(Path.join([nm_dir, "keep-me", "index.js"]))
+      refute File.exists?(Path.join(nm_dir, "remove-me"))
+    end
+
+    @tag :tmp_dir
+    test "removes scoped packages not in expected set", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join([nm_dir, "@scope", "keep"]))
+      File.mkdir_p!(Path.join([nm_dir, "@scope", "remove"]))
+      File.write!(Path.join([nm_dir, "@scope", "keep", "index.js"]), "kept")
+      File.write!(Path.join([nm_dir, "@scope", "remove", "index.js"]), "removed")
+
+      NPM.Linker.prune(nm_dir, MapSet.new(["@scope/keep"]))
+
+      assert File.exists?(Path.join([nm_dir, "@scope", "keep", "index.js"]))
+      refute File.exists?(Path.join([nm_dir, "@scope", "remove"]))
+    end
+
+    @tag :tmp_dir
+    test "removes empty scope directories", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join([nm_dir, "@scope", "pkg"]))
+      File.write!(Path.join([nm_dir, "@scope", "pkg", "index.js"]), "data")
+
+      NPM.Linker.prune(nm_dir, MapSet.new())
+
+      refute File.exists?(Path.join(nm_dir, "@scope"))
+    end
+
+    @tag :tmp_dir
+    test "handles missing node_modules directory", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "nonexistent")
+      assert :ok = NPM.Linker.prune(nm_dir, MapSet.new())
+    end
+
+    @tag :tmp_dir
+    test "does nothing when all packages are expected", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm_dir, "a"))
+      File.mkdir_p!(Path.join(nm_dir, "b"))
+      File.write!(Path.join([nm_dir, "a", "index.js"]), "a")
+      File.write!(Path.join([nm_dir, "b", "index.js"]), "b")
+
+      NPM.Linker.prune(nm_dir, MapSet.new(["a", "b"]))
+
+      assert File.exists?(Path.join([nm_dir, "a", "index.js"]))
+      assert File.exists?(Path.join([nm_dir, "b", "index.js"]))
+    end
+
+    @tag :tmp_dir
+    test "handles empty node_modules", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+      File.mkdir_p!(nm_dir)
+
+      assert :ok = NPM.Linker.prune(nm_dir, MapSet.new(["something"]))
     end
   end
 

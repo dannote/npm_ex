@@ -44,6 +44,9 @@ defmodule NPM.Linker do
   defp create_node_modules(lockfile, node_modules_dir, strategy) do
     File.mkdir_p!(node_modules_dir)
     tree = hoist(lockfile)
+    expected_names = MapSet.new(tree, &elem(&1, 0))
+
+    prune(node_modules_dir, expected_names)
 
     Enum.each(tree, fn {name, version} ->
       cache_path = NPM.Cache.package_dir(name, version)
@@ -99,6 +102,41 @@ defmodule NPM.Linker do
 
       {name, version}
     end)
+  end
+
+  @doc """
+  Remove packages from `node_modules` that are not in the expected set.
+
+  Handles both regular and scoped packages (`@scope/pkg`).
+  """
+  @spec prune(String.t(), MapSet.t()) :: :ok
+  def prune(node_modules_dir, expected_names) do
+    entries = list_dir(node_modules_dir)
+    {scopes, packages} = Enum.split_with(entries, &String.starts_with?(&1, "@"))
+
+    packages
+    |> Enum.reject(&MapSet.member?(expected_names, &1))
+    |> Enum.each(&File.rm_rf!(Path.join(node_modules_dir, &1)))
+
+    Enum.each(scopes, &prune_scope(node_modules_dir, &1, expected_names))
+  end
+
+  defp prune_scope(node_modules_dir, scope, expected_names) do
+    scope_dir = Path.join(node_modules_dir, scope)
+
+    scope_dir
+    |> list_dir()
+    |> Enum.reject(&MapSet.member?(expected_names, "#{scope}/#{&1}"))
+    |> Enum.each(&File.rm_rf!(Path.join(scope_dir, &1)))
+
+    if list_dir(scope_dir) == [], do: File.rmdir(scope_dir)
+  end
+
+  defp list_dir(path) do
+    case File.ls(path) do
+      {:ok, entries} -> entries
+      {:error, _} -> []
+    end
   end
 
   defp default_strategy do

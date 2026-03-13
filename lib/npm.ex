@@ -28,26 +28,34 @@ defmodule NPM do
 
     * `:frozen` - when `true`, fails if `npm.lock` doesn't match
       `package.json` instead of re-resolving. Useful for CI.
+    * `:production` - when `true`, skips `devDependencies`.
   """
   @spec install(keyword()) :: :ok | {:error, term()}
   def install(opts \\ []) do
-    case NPM.PackageJSON.read() do
-      {:ok, deps} -> do_install(deps, opts)
-      error -> error
+    case NPM.PackageJSON.read_all() do
+      {:ok, %{dependencies: deps, dev_dependencies: dev_deps}} ->
+        all_deps = if opts[:production], do: deps, else: Map.merge(deps, dev_deps)
+        do_install(all_deps, opts)
+
+      error ->
+        error
     end
   end
 
   @doc """
   Add a package to `package.json` and install all dependencies.
+
+  ## Options
+
+    * `:dev` - when `true`, adds to `devDependencies` instead of `dependencies`
   """
-  @spec add(String.t(), String.t()) :: :ok | {:error, term()}
-  def add(name, range \\ "latest") do
+  @spec add(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
+  def add(name, range \\ "latest", opts \\ []) do
     range = if range == "latest", do: resolve_latest(name), else: range
 
     with range_str when is_binary(range_str) <- range,
-         :ok <- NPM.PackageJSON.add_dep(name, range_str),
-         {:ok, deps} <- NPM.PackageJSON.read() do
-      do_install(deps, [])
+         :ok <- NPM.PackageJSON.add_dep(name, range_str, "package.json", opts) do
+      install([])
     end
   end
 
@@ -56,9 +64,8 @@ defmodule NPM do
   """
   @spec remove(String.t()) :: :ok | {:error, term()}
   def remove(name) do
-    with :ok <- NPM.PackageJSON.remove_dep(name),
-         {:ok, deps} <- NPM.PackageJSON.read() do
-      do_install(deps, [])
+    with :ok <- NPM.PackageJSON.remove_dep(name) do
+      install([])
     end
   end
 

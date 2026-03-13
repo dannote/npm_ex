@@ -4,11 +4,13 @@ defmodule Mix.Tasks.Npm.Install do
   @moduledoc """
   Install npm packages.
 
-      mix npm.install                    # Install all deps from package.json
-      mix npm.install lodash             # Add latest version
-      mix npm.install lodash@^4.0        # Add with specific range
-      mix npm.install @types/node@^20    # Add scoped package
-      mix npm.install --frozen           # Fail if lockfile is stale (CI)
+      mix npm.install                         # Install all deps from package.json
+      mix npm.install lodash                  # Add latest version
+      mix npm.install lodash@^4.0             # Add with specific range
+      mix npm.install @types/node@^20         # Add scoped package
+      mix npm.install --frozen                # Fail if lockfile is stale (CI)
+      mix npm.install --production            # Skip devDependencies
+      mix npm.install eslint --save-dev       # Add to devDependencies
 
   Resolves all dependencies using the PubGrub solver, writes `npm.lock`,
   and links packages into `node_modules/`.
@@ -23,19 +25,24 @@ defmodule Mix.Tasks.Npm.Install do
 
     case positional do
       [] -> NPM.install(opts)
-      [spec] -> install_spec(spec)
-      _ -> Mix.shell().error("Usage: mix npm.install [package[@range]] [--frozen]")
+      [spec] -> install_spec(spec, opts)
+      _ -> Mix.shell().error("Usage: mix npm.install [package[@range]] [--frozen] [--save-dev]")
     end
   end
 
   defp parse_args(args) do
-    {parsed, rest, _} = OptionParser.parse(args, strict: [frozen: :boolean])
+    {parsed, rest, _} =
+      OptionParser.parse(args,
+        strict: [frozen: :boolean, production: :boolean, save_dev: :boolean]
+      )
+
     {parsed, rest}
   end
 
-  defp install_spec(spec) do
+  defp install_spec(spec, opts) do
     {name, range} = parse_package_spec(spec)
-    NPM.add(name, range)
+    add_opts = if opts[:save_dev], do: [dev: true], else: []
+    NPM.add(name, range, add_opts)
   end
 
   @doc false
