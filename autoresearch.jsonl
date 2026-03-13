@@ -84,3 +84,4 @@
 {"run":83,"commit":"3cb7aef","metric":689,"metrics":{},"status":"keep","description":"Add PackageSpec prerelease/url specs, Alias alias?/parse edge cases, DepTree empty/count, Format package display — 9 real behavior tests","timestamp":1773403107181,"segment":0}
 {"run":84,"commit":"5108435","metric":696,"metrics":{},"status":"keep","description":"Add DepGraph fan_out, VersionUtil edge cases (bump resets, pre-release sort), Integrity round-trip tests — 7 tests","timestamp":1773403140512,"segment":0}
 {"run":85,"commit":"f8ae721","metric":700,"metrics":{},"status":"keep","description":"Add Manifest from_json edge cases (defaults, has_scripts?, all_dep_names, ESM type) — 700 tests milestone","timestamp":1773403165981,"segment":0}
+{"run":86,"commit":"70fad9e","metric":702,"metrics":{},"status":"keep","description":"Add frozen install lockfile mismatch detection test, default link strategy verification test","timestamp":1773403208004,"segment":0}

@@ -4741,6 +4741,70 @@ defmodule NPMTest do
     end
   end
 
+  describe "LockMerge: lockfile merging" do
+    test "merge prefers newer entries" do
+      base = %{
+        "lodash" => %{version: "4.17.20", integrity: "", tarball: "", dependencies: %{}},
+        "react" => %{version: "18.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      newer = %{
+        "lodash" => %{version: "4.17.21", integrity: "", tarball: "", dependencies: %{}},
+        "vue" => %{version: "3.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      merged = NPM.LockMerge.merge(base, newer)
+      assert merged["lodash"].version == "4.17.21"
+      assert merged["react"].version == "18.0.0"
+      assert merged["vue"].version == "3.0.0"
+    end
+
+    test "merge with custom resolver picks higher version" do
+      base = %{
+        "pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      newer = %{
+        "pkg" => %{version: "2.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      result =
+        NPM.LockMerge.merge(base, newer, fn _name, b, n ->
+          if NPM.VersionUtil.gt?(n.version, b.version), do: n, else: b
+        end)
+
+      assert result["pkg"].version == "2.0.0"
+    end
+
+    test "diff detects added, removed, and changed packages" do
+      base = %{
+        "lodash" => %{version: "4.17.20", integrity: "", tarball: "", dependencies: %{}},
+        "removed-pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      newer = %{
+        "lodash" => %{version: "4.17.21", integrity: "", tarball: "", dependencies: %{}},
+        "new-pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      {added, removed, changed} = NPM.LockMerge.diff(base, newer)
+      assert "new-pkg" in added
+      assert "removed-pkg" in removed
+      assert {"lodash", "4.17.20", "4.17.21"} in changed
+    end
+
+    test "diff returns empty when identical" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      {added, removed, changed} = NPM.LockMerge.diff(lockfile, lockfile)
+      assert added == []
+      assert removed == []
+      assert changed == []
+    end
+  end
+
   describe "frozen install: lockfile mismatch detection" do
     @tag :tmp_dir
     test "frozen mode fails when lockfile missing deps", %{tmp_dir: dir} do
