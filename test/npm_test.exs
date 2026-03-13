@@ -4635,6 +4635,87 @@ defmodule NPMTest do
     end
   end
 
+  describe "PackageJSON: npm-compatible add/remove behavior" do
+    @tag :tmp_dir
+    test "add_dep creates dependencies section if missing", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"name": "test"}))
+
+      :ok = NPM.PackageJSON.add_dep("lodash", "^4.0.0", path)
+      data = path |> File.read!() |> :json.decode()
+      assert data["dependencies"]["lodash"] == "^4.0.0"
+    end
+
+    @tag :tmp_dir
+    test "add_dep preserves existing deps", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"dependencies": {"react": "^18.0"}}))
+
+      :ok = NPM.PackageJSON.add_dep("lodash", "^4.0.0", path)
+      data = path |> File.read!() |> :json.decode()
+      assert data["dependencies"]["react"] == "^18.0"
+      assert data["dependencies"]["lodash"] == "^4.0.0"
+    end
+
+    @tag :tmp_dir
+    test "remove_dep removes from correct section", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"dependencies": {"lodash": "^4.0", "react": "^18.0"}}))
+
+      :ok = NPM.PackageJSON.remove_dep("lodash", path)
+      data = path |> File.read!() |> :json.decode()
+      refute Map.has_key?(data["dependencies"], "lodash")
+      assert data["dependencies"]["react"] == "^18.0"
+    end
+
+    @tag :tmp_dir
+    test "add_dep with --dev adds to devDependencies", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"name": "test"}))
+
+      :ok = NPM.PackageJSON.add_dep("jest", "^29.0", path, dev: true)
+      data = path |> File.read!() |> :json.decode()
+      assert data["devDependencies"]["jest"] == "^29.0"
+      assert is_nil(data["dependencies"])
+    end
+
+    @tag :tmp_dir
+    test "add_dep with --save-optional adds to optionalDependencies", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"name": "test"}))
+
+      :ok = NPM.PackageJSON.add_dep("fsevents", "^2.0", path, optional: true)
+      data = path |> File.read!() |> :json.decode()
+      assert data["optionalDependencies"]["fsevents"] == "^2.0"
+    end
+  end
+
+  describe "Linker: symlink strategy creates links" do
+    @tag :tmp_dir
+    test "symlink points to cache directory", %{tmp_dir: dir} do
+      cache_dir = Path.join(dir, "cache")
+      nm_dir = Path.join(dir, "node_modules")
+
+      setup_cached_package(cache_dir, "linked-pkg", "1.0.0", %{
+        "package.json" => ~s({"name":"linked-pkg"})
+      })
+
+      System.put_env("NPM_EX_CACHE_DIR", cache_dir)
+
+      lockfile = %{
+        "linked-pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      assert :ok = NPM.Linker.link(lockfile, nm_dir, :symlink)
+
+      target = Path.join(nm_dir, "linked-pkg")
+      {:ok, info} = File.lstat(target)
+      assert info.type == :symlink
+
+      System.delete_env("NPM_EX_CACHE_DIR")
+    end
+  end
+
   describe "Cache: path structure matches npm convention" do
     test "package_dir uses name/version structure" do
       path = NPM.Cache.package_dir("lodash", "4.17.21")
