@@ -240,6 +240,55 @@ defmodule NPMTest do
     end
   end
 
+  # --- PackageJSON.git_dep? ---
+
+  describe "PackageJSON.git_dep?" do
+    test "recognizes git+https URLs" do
+      assert NPM.PackageJSON.git_dep?("git+https://github.com/user/repo.git")
+    end
+
+    test "recognizes git+ssh URLs" do
+      assert NPM.PackageJSON.git_dep?("git+ssh://git@github.com/user/repo.git")
+    end
+
+    test "recognizes github: shorthand" do
+      assert NPM.PackageJSON.git_dep?("github:user/repo")
+    end
+
+    test "recognizes git:// URLs" do
+      assert NPM.PackageJSON.git_dep?("git://github.com/user/repo.git")
+    end
+
+    test "recognizes .git suffix" do
+      assert NPM.PackageJSON.git_dep?("https://github.com/user/repo.git")
+    end
+
+    test "rejects regular ranges" do
+      refute NPM.PackageJSON.git_dep?("^4.0.0")
+      refute NPM.PackageJSON.git_dep?("latest")
+      refute NPM.PackageJSON.git_dep?("~1.0")
+    end
+  end
+
+  describe "PackageJSON.url_dep?" do
+    test "recognizes http tgz URLs" do
+      assert NPM.PackageJSON.url_dep?("http://example.com/pkg-1.0.0.tgz")
+    end
+
+    test "recognizes https tar.gz URLs" do
+      assert NPM.PackageJSON.url_dep?("https://example.com/pkg.tar.gz")
+    end
+
+    test "rejects non-tarball URLs" do
+      refute NPM.PackageJSON.url_dep?("https://example.com/page")
+    end
+
+    test "rejects regular ranges" do
+      refute NPM.PackageJSON.url_dep?("^4.0.0")
+      refute NPM.PackageJSON.url_dep?("latest")
+    end
+  end
+
   # --- PackageJSON.read_overrides ---
 
   describe "PackageJSON.read_overrides" do

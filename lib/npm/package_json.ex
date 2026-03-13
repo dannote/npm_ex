@@ -116,6 +116,31 @@ defmodule NPM.PackageJSON do
     Path.expand(path, base_dir)
   end
 
+  @doc """
+  Check if a dependency range refers to a git repository.
+
+  Supports `git+https://`, `git+ssh://`, `github:user/repo`, and `git://` URLs.
+  """
+  @spec git_dep?(String.t()) :: boolean()
+  def git_dep?("git+" <> _), do: true
+  def git_dep?("git://" <> _), do: true
+  def git_dep?("github:" <> _), do: true
+  def git_dep?(range), do: String.contains?(range, ".git")
+
+  @doc """
+  Check if a dependency range refers to a URL tarball.
+
+  Supports `http://` and `https://` URLs ending in `.tgz` or `.tar.gz`.
+  """
+  @spec url_dep?(String.t()) :: boolean()
+  def url_dep?("http://" <> _ = url), do: tarball_url?(url)
+  def url_dep?("https://" <> _ = url), do: tarball_url?(url)
+  def url_dep?(_), do: false
+
+  defp tarball_url?(url) do
+    String.ends_with?(url, ".tgz") or String.ends_with?(url, ".tar.gz")
+  end
+
   @doc "Read overrides from `package.json`."
   @spec read_overrides(String.t()) :: {:ok, %{String.t() => String.t()}} | {:error, term()}
   def read_overrides(path \\ @default_path) do
