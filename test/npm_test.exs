@@ -2687,6 +2687,98 @@ defmodule NPMTest do
     end
   end
 
+  # --- Platform ---
+
+  describe "Platform.os_compatible?" do
+    test "empty list is always compatible" do
+      assert NPM.Platform.os_compatible?([])
+    end
+
+    test "current OS is compatible" do
+      current = NPM.Platform.current_os()
+      assert NPM.Platform.os_compatible?([current])
+    end
+
+    test "different OS is not compatible" do
+      # pick an OS that's definitely not current
+      other = if NPM.Platform.current_os() == "linux", do: "win32", else: "linux"
+      refute NPM.Platform.os_compatible?([other])
+    end
+
+    test "blocklist excludes current OS" do
+      current = NPM.Platform.current_os()
+      refute NPM.Platform.os_compatible?(["!#{current}"])
+    end
+
+    test "blocklist allows other OSes" do
+      other = if NPM.Platform.current_os() == "linux", do: "win32", else: "linux"
+      assert NPM.Platform.os_compatible?(["!#{other}"])
+    end
+
+    test "non-list is compatible" do
+      assert NPM.Platform.os_compatible?("any")
+    end
+  end
+
+  describe "Platform.cpu_compatible?" do
+    test "empty list is always compatible" do
+      assert NPM.Platform.cpu_compatible?([])
+    end
+
+    test "current CPU is compatible" do
+      current = NPM.Platform.current_cpu()
+      assert NPM.Platform.cpu_compatible?([current])
+    end
+
+    test "different CPU is not compatible" do
+      other = if NPM.Platform.current_cpu() == "x64", do: "arm", else: "x64"
+      refute NPM.Platform.cpu_compatible?([other])
+    end
+
+    test "non-list is compatible" do
+      assert NPM.Platform.cpu_compatible?("any")
+    end
+  end
+
+  describe "Platform.current_os" do
+    test "returns a known OS string" do
+      os = NPM.Platform.current_os()
+      assert os in ["darwin", "linux", "freebsd", "win32"] or is_binary(os)
+    end
+  end
+
+  describe "Platform.current_cpu" do
+    test "returns a known CPU string" do
+      cpu = NPM.Platform.current_cpu()
+      assert cpu in ["x64", "arm64", "arm", "ia32"] or is_binary(cpu)
+    end
+  end
+
+  describe "Platform.check_engines" do
+    test "returns empty for no engines" do
+      assert NPM.Platform.check_engines(%{}) == []
+    end
+
+    test "returns warning for node engine" do
+      warnings = NPM.Platform.check_engines(%{"node" => ">=18"})
+      assert length(warnings) == 1
+      assert hd(warnings) =~ "node"
+    end
+
+    test "returns warnings for multiple engines" do
+      warnings = NPM.Platform.check_engines(%{"node" => ">=18", "npm" => ">=9"})
+      assert length(warnings) == 2
+    end
+
+    test "ignores unknown engines" do
+      assert NPM.Platform.check_engines(%{"bun" => ">=1.0"}) == []
+    end
+
+    test "handles non-map input" do
+      assert NPM.Platform.check_engines(nil) == []
+    end
+  end
+
   # --- Exports ---
 
   describe "Exports.parse" do
