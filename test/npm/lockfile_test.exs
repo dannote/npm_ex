@@ -792,4 +792,49 @@ defmodule NPM.LockfileTest do
       assert loaded["express"].version == "4.21.2"
     end
   end
+
+  describe "parse_packages" do
+    test "parses raw packages map into lockfile entries" do
+      packages = %{
+        "lodash" => %{
+          "version" => "4.17.21",
+          "integrity" => "sha512-abc",
+          "tarball" => "https://example.com/lodash.tgz",
+          "dependencies" => %{"dep" => "^1.0"}
+        }
+      }
+
+      result = NPM.Lockfile.parse_packages(packages)
+      assert result["lodash"].version == "4.17.21"
+      assert result["lodash"].integrity == "sha512-abc"
+      assert result["lodash"].tarball == "https://example.com/lodash.tgz"
+      assert result["lodash"].dependencies == %{"dep" => "^1.0"}
+    end
+
+    test "handles missing fields with defaults" do
+      packages = %{"minimal" => %{}}
+      result = NPM.Lockfile.parse_packages(packages)
+      assert result["minimal"].version == ""
+      assert result["minimal"].integrity == ""
+      assert result["minimal"].dependencies == %{}
+    end
+
+    test "empty packages map" do
+      assert %{} = NPM.Lockfile.parse_packages(%{})
+    end
+
+    test "multiple packages" do
+      packages = %{
+        "a" => %{"version" => "1.0.0"},
+        "b" => %{"version" => "2.0.0"},
+        "c" => %{"version" => "3.0.0"}
+      }
+
+      result = NPM.Lockfile.parse_packages(packages)
+      assert map_size(result) == 3
+      assert result["a"].version == "1.0.0"
+      assert result["b"].version == "2.0.0"
+      assert result["c"].version == "3.0.0"
+    end
+  end
 end
