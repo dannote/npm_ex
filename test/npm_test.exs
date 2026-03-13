@@ -4781,6 +4781,24 @@ defmodule NPMTest do
     end
   end
 
+  describe "SemverUtil: empty list edge cases" do
+    test "max_satisfying with empty list" do
+      assert :none = NPM.SemverUtil.max_satisfying([], "^1.0.0")
+    end
+
+    test "min_satisfying with empty list" do
+      assert :none = NPM.SemverUtil.min_satisfying([], "^1.0.0")
+    end
+
+    test "filter with empty list returns empty" do
+      assert [] = NPM.SemverUtil.filter([], "^1.0.0")
+    end
+
+    test "any_satisfying? with empty list returns false" do
+      refute NPM.SemverUtil.any_satisfying?([], "^1.0.0")
+    end
+  end
+
   describe "SemverUtil: update_type" do
     test "detects major update" do
       assert :major = NPM.SemverUtil.update_type("1.0.0", "2.0.0")
@@ -4792,6 +4810,40 @@ defmodule NPMTest do
 
     test "detects patch update" do
       assert :patch = NPM.SemverUtil.update_type("1.0.0", "1.0.1")
+    end
+
+    test "detects no change" do
+      assert :none = NPM.SemverUtil.update_type("1.0.0", "1.0.0")
+    end
+
+    test "handles invalid version gracefully" do
+      assert :none = NPM.SemverUtil.update_type("not-a-version", "1.0.0")
+    end
+  end
+
+  describe "EnvCheck: summary structure" do
+    test "summary includes current OS and CPU" do
+      info = NPM.EnvCheck.summary()
+      assert info.os in ["darwin", "linux", "freebsd", "win32"]
+      assert info.cpu in ["x64", "arm64", "arm", "ia32"]
+    end
+
+    test "summary includes Elixir version" do
+      info = NPM.EnvCheck.summary()
+      assert String.contains?(info.elixir_version, ".")
+    end
+  end
+
+  describe "Config: parse_npmrc round-trip" do
+    @tag :tmp_dir
+    test "manually written npmrc parses correctly", %{tmp_dir: dir} do
+      path = Path.join(dir, ".npmrc")
+      content = "registry=https://custom.registry.com\nsave-exact=true\n"
+      File.write!(path, content)
+
+      result = NPM.Config.parse_npmrc(File.read!(path))
+      assert result["registry"] == "https://custom.registry.com"
+      assert result["save-exact"] == "true"
     end
   end
 
