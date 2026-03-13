@@ -8,10 +8,15 @@ defmodule NPM.PackageUpdate do
   """
   @spec update_type(String.t(), String.t()) :: atom()
   def update_type(current, latest) do
-    case {parse_parts(current), parse_parts(latest)} do
-      {{cm, _, _}, {lm, _, _}} when cm < lm -> :major
-      {{_, cmin, _}, {_, lmin, _}} when cmin < lmin -> :minor
-      {{_, _, cp}, {_, _, lp}} when cp < lp -> :patch
+    with {:ok, {cm, cmin, cp}} <- NPM.VersionUtil.parse_triple(current),
+         {:ok, {lm, lmin, lp}} <- NPM.VersionUtil.parse_triple(latest) do
+      cond do
+        cm < lm -> :major
+        cmin < lmin -> :minor
+        cp < lp -> :patch
+        true -> :current
+      end
+    else
       _ -> :current
     end
   end
@@ -62,24 +67,6 @@ defmodule NPM.PackageUpdate do
     Enum.map_join(updates, "\n", fn u ->
       "#{u.name}: #{u.current} → #{u.latest} (#{u.type})"
     end)
-  end
-
-  defp parse_parts(version) do
-    parts = version |> String.split(".") |> Enum.map(&safe_to_integer/1)
-
-    case parts do
-      [major, minor, patch | _] -> {major, minor, patch}
-      [major, minor] -> {major, minor, 0}
-      [major] -> {major, 0, 0}
-      _ -> {0, 0, 0}
-    end
-  end
-
-  defp safe_to_integer(str) do
-    case Integer.parse(str) do
-      {n, _} -> n
-      :error -> 0
-    end
   end
 
   defp type_order(:major), do: 0

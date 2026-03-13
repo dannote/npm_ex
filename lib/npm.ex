@@ -256,12 +256,9 @@ defmodule NPM do
 
     case result do
       :ok ->
-        count = map_size(lockfile)
-
-        Mix.shell().info(
-          "Installed #{count} package#{if count != 1, do: "s", else: ""} in #{format_ms(link_us)}"
-        )
-
+        ms = div(link_us, 1000)
+        Mix.shell().info(NPM.DepsOutput.format_summary(map_size(lockfile), ms))
+        Mix.shell().info(NPM.DepsOutput.format_lockfile(lockfile))
         :ok
 
       error ->
@@ -367,18 +364,8 @@ defmodule NPM do
   defp print_lockfile_diff(old, new) when old == new, do: :ok
 
   defp print_lockfile_diff(old, new) do
-    added = Map.keys(new) -- Map.keys(old)
-    removed = Map.keys(old) -- Map.keys(new)
-
-    updated =
-      for key <- Map.keys(new),
-          Map.has_key?(old, key),
-          old[key].version != new[key].version,
-          do: key
-
-    Enum.each(added, &Mix.shell().info("  + #{&1}@#{new[&1].version}"))
-    Enum.each(removed, &Mix.shell().info("  - #{&1}"))
-    Enum.each(updated, &Mix.shell().info("  ↑ #{&1} #{old[&1].version} → #{new[&1].version}"))
+    diff = NPM.DepsOutput.format_diff(old, new)
+    if diff != "", do: Mix.shell().info(diff)
   end
 
   defp format_ms(microseconds) do
