@@ -22,3 +22,4 @@
 {"run":21,"commit":"16eadf5","metric":181,"metrics":{},"status":"keep","description":"Add mix npm.audit, dotfile preservation in prune, multi-cache test, special characters in lockfile test","timestamp":1773397399710,"segment":0}
 {"run":22,"commit":"bdfdf8c","metric":184,"metrics":{},"status":"keep","description":"Add optionalDependencies support, --save-optional flag, mix npm.dedupe, mix npm.audit","timestamp":1773397506911,"segment":0}
 {"run":23,"commit":"0141c02","metric":186,"metrics":{},"status":"keep","description":"Add mix npm.prune, full flow test (install→prune→bins), optional deps field interaction test","timestamp":1773397586089,"segment":0}
+{"run":24,"commit":"4be6467","metric":191,"metrics":{},"status":"keep","description":"Add file: dependency support, lockfile listing test, file_dep?/resolve_file_dep functions","timestamp":1773397645894,"segment":0}

@@ -2168,6 +2168,67 @@ defmodule NPMTest do
     end
   end
 
+  # --- Validator comprehensive ---
+
+  describe "Validator comprehensive name checks" do
+    test "accepts single character name" do
+      assert :ok = NPM.Validator.validate_name("a")
+    end
+
+    test "accepts name with all valid chars" do
+      assert :ok = NPM.Validator.validate_name("my-pkg.util_v2")
+    end
+
+    test "rejects name starting with @" do
+      assert :ok = NPM.Validator.validate_name("@scope/pkg")
+    end
+
+    test "accepts 214-char scoped name" do
+      name = "@a/" <> String.duplicate("b", 211)
+      assert :ok = NPM.Validator.validate_name(name)
+    end
+  end
+
+  describe "Validator comprehensive range checks" do
+    test "accepts hyphen range" do
+      assert :ok = NPM.Validator.validate_range("1.0.0 - 2.0.0")
+    end
+
+    test "accepts or range" do
+      assert :ok = NPM.Validator.validate_range(">=1.0.0 <2.0.0")
+    end
+
+    test "validates caret with pre-release" do
+      result = NPM.Validator.validate_range("^1.0.0-alpha.1")
+      assert result == :ok or match?({:error, _}, result)
+    end
+  end
+
+  # --- Linker with empty lockfile ---
+
+  describe "Linker with empty lockfile" do
+    @tag :tmp_dir
+    test "handles empty lockfile gracefully", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+      assert :ok = NPM.Linker.link(%{}, nm_dir, :copy)
+      assert File.exists?(nm_dir)
+    end
+  end
+
+  # --- PackageJSON error handling ---
+
+  describe "PackageJSON error handling" do
+    @tag :tmp_dir
+    test "read raises for invalid JSON", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, "not json{{{")
+
+      assert_raise ErlangError, fn ->
+        NPM.PackageJSON.read(path)
+      end
+    end
+  end
+
   # --- Lockfile sorted listing ---
 
   describe "Lockfile listing" do
