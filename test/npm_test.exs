@@ -4741,6 +4741,47 @@ defmodule NPMTest do
     end
   end
 
+  describe "Platform: cpu_compatible? tests" do
+    test "compatible with current cpu" do
+      current = NPM.Platform.current_cpu()
+      assert NPM.Platform.cpu_compatible?([current])
+    end
+
+    test "incompatible with wrong cpu" do
+      refute NPM.Platform.cpu_compatible?(["definitely-wrong-arch"])
+    end
+
+    test "blocklist rejects current cpu" do
+      current = NPM.Platform.current_cpu()
+      refute NPM.Platform.cpu_compatible?(["!#{current}"])
+    end
+
+    test "empty list means compatible" do
+      assert NPM.Platform.cpu_compatible?([])
+    end
+  end
+
+  describe "Packager: file exclusion" do
+    @tag :tmp_dir
+    test "excludes .git directory", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "package.json"), ~s({"name":"test"}))
+      File.mkdir_p!(Path.join(dir, ".git"))
+      File.write!(Path.join([dir, ".git", "config"]), "")
+
+      files = NPM.Packager.files_to_pack(dir)
+      refute Enum.any?(files, &String.contains?(&1, ".git"))
+    end
+
+    @tag :tmp_dir
+    test "pack_file_count returns correct count", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "package.json"), ~s({"name":"test"}))
+      File.write!(Path.join(dir, "index.js"), "")
+
+      count = NPM.Packager.pack_file_count(dir)
+      assert count >= 2
+    end
+  end
+
   describe "BinResolver: binary lookup" do
     @tag :tmp_dir
     test "list returns available commands", %{tmp_dir: dir} do
