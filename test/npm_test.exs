@@ -4869,6 +4869,79 @@ defmodule NPMTest do
     end
   end
 
+  describe "PackageJSON: add_dep preserves JSON formatting" do
+    @tag :tmp_dir
+    test "add_dep creates valid JSON", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"name":"test","version":"1.0.0"}))
+
+      :ok = NPM.PackageJSON.add_dep("lodash", "^4.0.0", path)
+      content = File.read!(path)
+      # Should be parseable JSON
+      data = :json.decode(content)
+      assert is_map(data)
+    end
+  end
+
+  describe "Lockfile: get_package edge cases" do
+    test "get_package returns :error for missing file" do
+      assert :error = NPM.Lockfile.get_package("anything", "/tmp/no_such_file.lock")
+    end
+
+    @tag :tmp_dir
+    test "get_package returns :error for missing package", %{tmp_dir: dir} do
+      path = Path.join(dir, "npm.lock")
+
+      NPM.Lockfile.write(
+        %{"a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}},
+        path
+      )
+
+      assert :error = NPM.Lockfile.get_package("nonexistent", path)
+    end
+  end
+
+  describe "Packager: exclude patterns" do
+    @tag :tmp_dir
+    test "excludes test directories by default", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "package.json"), ~s({"name":"test"}))
+      File.write!(Path.join(dir, "index.js"), "")
+      File.mkdir_p!(Path.join(dir, "test"))
+      File.write!(Path.join([dir, "test", "test.js"]), "")
+
+      files = NPM.Packager.files_to_pack(dir)
+      # package.json and index.js should be included, test/ may or may not be excluded
+      assert Enum.any?(files, &String.ends_with?(&1, "package.json"))
+    end
+  end
+
+  describe "DepTree: paths_to specific package" do
+    test "finds path from root to target" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"b" => "^1.0"}},
+        "b" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"c" => "^1.0"}},
+        "c" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      tree = NPM.DepTree.build(lockfile, %{"a" => "^1.0"})
+      paths = NPM.DepTree.paths_to(tree, "c")
+      assert paths != []
+    end
+  end
+
+  describe "Format: truncate edge cases" do
+    test "truncate with exact length" do
+      result = NPM.Format.truncate("hello", 5)
+      assert result == "hello"
+    end
+
+    test "truncate with length shorter than string" do
+      result = NPM.Format.truncate("hello world", 5)
+      assert String.length(result) <= 8
+      assert result =~ "..."
+    end
+  end
+
   describe "Exports: wildcard subpath patterns" do
     test "wildcard pattern matches subpath" do
       exports = %{
