@@ -4990,6 +4990,75 @@ defmodule NPMTest do
     end
   end
 
+  describe "DepTree: build with circular deps" do
+    test "handles circular dependencies without infinite loop" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"b" => "^1.0"}},
+        "b" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"a" => "^1.0"}}
+      }
+
+      tree = NPM.DepTree.build(lockfile, %{"a" => "^1.0"})
+      all = NPM.DepTree.flatten(tree)
+      assert "a" in all
+      assert "b" in all
+    end
+  end
+
+  describe "PackageJSON: remove_dep behavior" do
+    @tag :tmp_dir
+    test "removing non-existent dep returns error", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"dependencies": {"react": "^18.0"}}))
+
+      result = NPM.PackageJSON.remove_dep("nonexistent", path)
+      assert {:error, {:not_found, "nonexistent"}} = result
+    end
+  end
+
+  describe "Integrity: parse various formats" do
+    test "parses sha512" do
+      {:ok, {"sha512", _}} = NPM.Integrity.parse("sha512-abc123")
+    end
+
+    test "parses sha256" do
+      {:ok, {"sha256", _}} = NPM.Integrity.parse("sha256-abc123")
+    end
+
+    test "parse returns error for invalid format" do
+      result = NPM.Integrity.parse("invalid")
+      assert result == :error or match?({:error, _}, result)
+    end
+  end
+
+  describe "BinResolver: list sorting" do
+    @tag :tmp_dir
+    test "list returns sorted results", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      bin_dir = Path.join(nm, ".bin")
+      File.mkdir_p!(bin_dir)
+      File.write!(Path.join(bin_dir, "zzz"), "#!/bin/sh")
+      File.write!(Path.join(bin_dir, "aaa"), "#!/bin/sh")
+      File.write!(Path.join(bin_dir, "mmm"), "#!/bin/sh")
+
+      bins = NPM.BinResolver.list(nm)
+      names = Enum.map(bins, &elem(&1, 0))
+      assert names == ["aaa", "mmm", "zzz"]
+    end
+  end
+
+  describe "EnvCheck: version_satisfies?" do
+    test "check_engines with satisfied range" do
+      case NPM.EnvCheck.node_version() do
+        {:ok, "v" <> version} ->
+          result = NPM.EnvCheck.check_engines(%{"node" => ">= 0.0.1"})
+          assert result == :ok
+
+        :not_found ->
+          :ok
+      end
+    end
+  end
+
   describe "Config: multi-line npmrc" do
     test "parses complex real-world npmrc" do
       content = """
