@@ -81,9 +81,12 @@ defmodule NPM.Registry do
     %{
       dependencies: Map.get(info, "dependencies", %{}),
       peer_dependencies: Map.get(info, "peerDependencies", %{}),
+      peer_dependencies_meta: Map.get(info, "peerDependenciesMeta", %{}),
       optional_dependencies: Map.get(info, "optionalDependencies", %{}),
       bin: parse_bin(info),
       engines: Map.get(info, "engines", %{}),
+      os: Map.get(info, "os", []),
+      cpu: Map.get(info, "cpu", []),
       has_install_script: Map.get(info, "hasInstallScript", false),
       deprecated: Map.get(info, "deprecated", nil),
       dist: %{

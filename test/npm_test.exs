@@ -2687,6 +2687,96 @@ defmodule NPMTest do
     end
   end
 
+  # --- Lifecycle ---
+
+  describe "Lifecycle.detect" do
+    @tag :tmp_dir
+    test "detects install hooks", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      File.write!(path, ~s({
+        "scripts": {
+          "preinstall": "echo pre",
+          "install": "node-gyp rebuild",
+          "postinstall": "echo done",
+          "test": "jest"
+        }
+      }))
+
+      hooks = NPM.Lifecycle.detect(path)
+      assert length(hooks) == 3
+      assert {"preinstall", "echo pre"} in hooks
+      assert {"install", "node-gyp rebuild"} in hooks
+      assert {"postinstall", "echo done"} in hooks
+    end
+
+    @tag :tmp_dir
+    test "returns empty for no scripts", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+      File.write!(path, ~s({"name": "no-scripts"}))
+
+      assert NPM.Lifecycle.detect(path) == []
+    end
+
+    @tag :tmp_dir
+    test "returns empty for missing file", %{tmp_dir: dir} do
+      assert NPM.Lifecycle.detect(Path.join(dir, "missing.json")) == []
+    end
+
+    @tag :tmp_dir
+    test "ignores non-install hooks", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      File.write!(path, ~s({
+        "scripts": {"test": "jest", "build": "tsc", "lint": "eslint ."}
+      }))
+
+      assert NPM.Lifecycle.detect(path) == []
+    end
+  end
+
+  describe "Lifecycle.detect_all" do
+    @tag :tmp_dir
+    test "finds packages with install scripts", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+
+      pkg_a = Path.join(nm_dir, "native-pkg")
+      File.mkdir_p!(pkg_a)
+
+      File.write!(
+        Path.join(pkg_a, "package.json"),
+        ~s({"scripts": {"postinstall": "node-gyp rebuild"}})
+      )
+
+      pkg_b = Path.join(nm_dir, "normal-pkg")
+      File.mkdir_p!(pkg_b)
+      File.write!(Path.join(pkg_b, "package.json"), ~s({"scripts": {"test": "jest"}}))
+
+      result = NPM.Lifecycle.detect_all(nm_dir)
+      assert Map.has_key?(result, "native-pkg")
+      refute Map.has_key?(result, "normal-pkg")
+      assert {"postinstall", "node-gyp rebuild"} in result["native-pkg"]
+    end
+
+    @tag :tmp_dir
+    test "handles empty node_modules", %{tmp_dir: dir} do
+      nm_dir = Path.join(dir, "node_modules")
+      File.mkdir_p!(nm_dir)
+
+      assert NPM.Lifecycle.detect_all(nm_dir) == %{}
+    end
+  end
+
+  describe "Lifecycle.hook_names" do
+    test "returns install-related hook names" do
+      names = NPM.Lifecycle.hook_names()
+      assert "preinstall" in names
+      assert "install" in names
+      assert "postinstall" in names
+      assert "prepare" in names
+    end
+  end
+
   # --- Platform ---
 
   describe "Platform.os_compatible?" do

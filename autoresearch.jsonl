@@ -33,3 +33,4 @@
 {"run":32,"commit":"ac5caab","metric":239,"metrics":{},"status":"keep","description":"Add git_dep?/url_dep? detection, mix npm.ls alias, 10 new dep type tests","timestamp":1773398063686,"segment":0}
 {"run":33,"commit":"46f0098","metric":250,"metrics":{},"status":"keep","description":"Add npmrc edge case tests, bin link overwrite test, validator name tests, cache ensure test — 250 tests milestone","timestamp":1773398126329,"segment":0}
 {"run":34,"commit":"9aa3bf8","metric":264,"metrics":{},"status":"keep","description":"Add NPM.Exports module (exports field parsing, conditional resolution, module type detection) with 14 tests","timestamp":1773398257807,"segment":0}
+{"run":35,"commit":"8e2edf0","metric":281,"metrics":{},"status":"keep","description":"Add NPM.Platform module (os/cpu compat checks, engines warnings, current_os/cpu detection) with 17 tests","timestamp":1773398306363,"segment":0}

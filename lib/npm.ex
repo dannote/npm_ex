@@ -306,15 +306,18 @@ defmodule NPM do
 
   defp check_peers(name, info, resolved) do
     peers = Map.get(info, :peer_dependencies, %{})
+    meta = Map.get(info, :peer_dependencies_meta, %{})
 
     Enum.each(peers, fn {peer_name, peer_range} ->
+      optional? = get_in(meta, [peer_name, "optional"]) == true
+
       case Map.get(resolved, peer_name) do
-        nil ->
+        nil when not optional? ->
           Mix.shell().info(
             "npm WARN #{name} requires peer #{peer_name}@#{peer_range} — not installed"
           )
 
-        _version ->
+        _ ->
           :ok
       end
     end)
