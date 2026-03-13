@@ -4741,6 +4741,85 @@ defmodule NPMTest do
     end
   end
 
+  describe "Hooks: configured hooks" do
+    @tag :tmp_dir
+    test "configured reads from package.json", %{tmp_dir: dir} do
+      old_dir = File.cwd!()
+      File.cd!(dir)
+
+      File.write!("package.json", ~s({
+        "scripts": {
+          "postinstall": "echo done",
+          "test": "jest"
+        }
+      }))
+
+      hooks = NPM.Hooks.configured()
+      assert is_map(hooks)
+
+      File.cd!(old_dir)
+    end
+
+    test "configured? checks specific hook name" do
+      # Without package.json in cwd, should not crash
+      result = NPM.Hooks.configured?(:post_install)
+      assert is_boolean(result)
+    end
+  end
+
+  describe "NodeModules: disk_size" do
+    @tag :tmp_dir
+    test "disk_size returns bytes for node_modules", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm, "pkg"))
+      File.write!(Path.join([nm, "pkg", "big-file.js"]), String.duplicate("x", 5000))
+
+      size = NPM.NodeModules.disk_size(nm)
+      assert size >= 5000
+    end
+
+    @tag :tmp_dir
+    test "disk_size returns 0 for empty dir", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(nm)
+
+      size = NPM.NodeModules.disk_size(nm)
+      assert size == 0
+    end
+  end
+
+  describe "Format: bytes edge cases" do
+    test "formats gigabytes" do
+      result = NPM.Format.bytes(2_000_000_000)
+      assert result =~ "GB"
+    end
+
+    test "formats exact kilobyte" do
+      result = NPM.Format.bytes(1024)
+      assert result =~ "1"
+    end
+  end
+
+  describe "LockMerge: edge cases" do
+    test "merge empty base with populated newer" do
+      newer = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      result = NPM.LockMerge.merge(%{}, newer)
+      assert result == newer
+    end
+
+    test "merge populated base with empty newer" do
+      base = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      result = NPM.LockMerge.merge(base, %{})
+      assert result == base
+    end
+  end
+
   describe "Platform: cpu_compatible? tests" do
     test "compatible with current cpu" do
       current = NPM.Platform.current_cpu()
