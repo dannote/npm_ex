@@ -20,7 +20,7 @@ defmodule NPM.Resolver do
 
     dependencies =
       Enum.map(root_deps, fn {name, range} ->
-        {:ok, constraint} = NPMSemver.to_hex_constraint(range)
+        {:ok, constraint} = normalize_range(range)
 
         %{
           repo: nil,
@@ -106,7 +106,7 @@ defmodule NPM.Resolver do
   end
 
   defp to_solver_dep({name, range}) do
-    case NPMSemver.to_hex_constraint(range) do
+    case normalize_range(range) do
       {:ok, constraint} ->
         [
           %{
@@ -123,6 +123,12 @@ defmodule NPM.Resolver do
         []
     end
   end
+
+  defp normalize_range(range) when range in ["*", "", "latest"] do
+    NPMSemver.to_hex_constraint(">=0.0.0")
+  end
+
+  defp normalize_range(range), do: NPMSemver.to_hex_constraint(range)
 
   # --- Cache ---
 
