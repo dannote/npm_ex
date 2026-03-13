@@ -5155,6 +5155,81 @@ defmodule NPMTest do
     end
   end
 
+  describe "Cache: dir defaults to ~/.npm_ex/cache" do
+    test "default cache dir when env not set" do
+      old = System.get_env("NPM_EX_CACHE_DIR")
+      System.delete_env("NPM_EX_CACHE_DIR")
+
+      dir = NPM.Cache.dir()
+      assert String.contains?(dir, "npm_ex")
+
+      if old, do: System.put_env("NPM_EX_CACHE_DIR", old)
+    end
+  end
+
+  describe "Linker: hoist is deterministic" do
+    test "same input always produces same output" do
+      lockfile = %{
+        "c" => %{version: "3.0.0", integrity: "", tarball: "", dependencies: %{}},
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}},
+        "b" => %{version: "2.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      tree1 = NPM.Linker.hoist(lockfile)
+      tree2 = NPM.Linker.hoist(lockfile)
+      assert Enum.sort(tree1) == Enum.sort(tree2)
+    end
+  end
+
+  describe "RegistryMirror: mirror_url" do
+    test "mirror_url returns configured or default" do
+      url = NPM.RegistryMirror.mirror_url()
+      assert is_binary(url)
+      assert String.starts_with?(url, "https://")
+    end
+  end
+
+  describe "VersionUtil: sort empty list" do
+    test "empty list returns empty" do
+      assert [] = NPM.VersionUtil.sort([])
+    end
+  end
+
+  describe "Integrity: compute sha256 consistency" do
+    test "sha256 of same data is deterministic" do
+      data = "test-data-for-hash"
+      h1 = NPM.Integrity.compute_sha256(data)
+      h2 = NPM.Integrity.compute_sha256(data)
+      assert h1 == h2
+    end
+  end
+
+  describe "Format: pluralize edge cases" do
+    test "pluralize with 0" do
+      assert "0 items" = NPM.Format.pluralize(0, "item", "items")
+    end
+
+    test "pluralize with 1" do
+      assert "1 item" = NPM.Format.pluralize(1, "item", "items")
+    end
+
+    test "pluralize with 100" do
+      assert "100 items" = NPM.Format.pluralize(100, "item", "items")
+    end
+  end
+
+  describe "Manifest: module_type defaults" do
+    test "defaults to CJS without type field" do
+      m = NPM.Manifest.from_json(~s({"name":"pkg"}))
+      assert m.module_type == :cjs
+    end
+
+    test "type: commonjs is CJS" do
+      m = NPM.Manifest.from_json(~s({"name":"pkg","type":"commonjs"}))
+      assert m.module_type == :cjs
+    end
+  end
+
   describe "DepGraph: roots in complex graph" do
     test "multiple roots detected" do
       adj = %{"a" => ["c"], "b" => ["c"], "c" => []}
