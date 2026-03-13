@@ -24,3 +24,4 @@
 {"run":23,"commit":"0141c02","metric":186,"metrics":{},"status":"keep","description":"Add mix npm.prune, full flow test (install→prune→bins), optional deps field interaction test","timestamp":1773397586089,"segment":0}
 {"run":24,"commit":"4be6467","metric":191,"metrics":{},"status":"keep","description":"Add file: dependency support, lockfile listing test, file_dep?/resolve_file_dep functions","timestamp":1773397645894,"segment":0}
 {"run":25,"commit":"a8b504a","metric":200,"metrics":{},"status":"keep","description":"Add mix npm.fund, comprehensive validator tests, empty lockfile test, error handling test — 200 tests milestone","timestamp":1773397703426,"segment":0}
+{"run":26,"commit":"c457800","metric":206,"metrics":{},"status":"keep","description":"Add cache path pattern tests, tarball multi-file extraction tests","timestamp":1773397745914,"segment":0}

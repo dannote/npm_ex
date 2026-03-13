@@ -2,11 +2,11 @@
 
 ## 0.4.0
 
-### New Tasks
+### New Tasks (22 new, 26 total)
 - `mix npm.init` — create a new `package.json`
 - `mix npm.update` — update all or specific packages
 - `mix npm.outdated` — show packages with newer versions available
-- `mix npm.tree` — display full dependency tree
+- `mix npm.tree` — display full dependency tree with circular detection
 - `mix npm.why` — explain why a package is installed
 - `mix npm.info` — show package details from the registry
 - `mix npm.search` — search the npm registry
@@ -18,21 +18,38 @@
 - `mix npm.cache status|clean` — manage global cache
 - `mix npm.config` — show configuration
 - `mix npm.version` — show npm_ex version
+- `mix npm.link` — link local packages for development
+- `mix npm.diff` — show lockfile changes since last commit
+- `mix npm.pack` — create a tarball of the current package
+- `mix npm.audit` — check for security vulnerabilities
+- `mix npm.dedupe` — re-resolve to minimize duplicates
+- `mix npm.prune` — remove extraneous packages
+- `mix npm.fund` — show package funding info
+- `mix npm.rebuild` — clean and reinstall from lockfile
+- `mix npm.uninstall` — alias for `npm.remove`
 
 ### Features
 - `devDependencies` support (`--save-dev`, `--production`)
+- `optionalDependencies` support (`--save-optional`)
 - `--save-exact` flag for pinning exact versions
 - `node_modules/.bin/` executable linking (string, map, and `directories.bin`)
-- Stale package pruning from `node_modules/` on re-install
+- Stale package pruning from `node_modules/` on re-install (preserves dotfiles)
 - Peer dependency warnings during resolution
 - Deprecation warnings during install
 - Lockfile diff output showing added/removed/updated packages
 - `overrides` support in `package.json`
+- Workspaces support (`workspaces` field with glob patterns)
 - Custom registry URL via `NPM_REGISTRY` env var
 - Auth token support via `NPM_TOKEN` env var
 - SHA-256 integrity verification (in addition to SHA-512 and SHA-1)
 - Retry with exponential backoff for failed HTTP requests
 - `engines`, `bin`, `deprecated`, `hasInstallScript` registry metadata parsing
+- `NPM.Validator` module for name/range validation
+- `NPM.Compiler` — Mix compiler for automatic npm installs
+- `file:` dependency references
+- Fix: scoped package copy strategy now creates parent directories
+- Fix: prune preserves `.bin/` and other dotfile directories
+- 200+ tests (up from 64)
 
 ## 0.3.1
 
