@@ -4661,6 +4661,65 @@ defmodule NPMTest do
     end
   end
 
+  describe "PackageSpec: edge case patterns" do
+    test "version with prerelease" do
+      spec = NPM.PackageSpec.parse("pkg@1.0.0-beta.1")
+      assert spec.name == "pkg"
+      assert spec.range == "1.0.0-beta.1"
+    end
+
+    test "scoped package without version" do
+      spec = NPM.PackageSpec.parse("@scope/pkg")
+      assert spec.name == "@scope/pkg"
+      assert spec.type == :registry
+    end
+
+    test "url spec" do
+      spec = NPM.PackageSpec.parse("https://github.com/user/repo/archive/main.tar.gz")
+      assert spec.type == :url
+    end
+  end
+
+  describe "Alias: edge cases" do
+    test "alias? checks npm: prefix" do
+      assert NPM.Alias.alias?("npm:react@^18.0")
+      refute NPM.Alias.alias?("^18.0")
+      refute NPM.Alias.alias?("latest")
+    end
+
+    test "parse returns {:normal, range} for non-alias" do
+      assert {:normal, "^4.0.0"} = NPM.Alias.parse("^4.0.0")
+    end
+  end
+
+  describe "DepTree: edge cases" do
+    test "empty lockfile produces empty tree" do
+      tree = NPM.DepTree.build(%{}, %{})
+      all = NPM.DepTree.flatten(tree)
+      assert all == []
+    end
+
+    test "count returns total packages" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"b" => "^1.0"}},
+        "b" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      tree = NPM.DepTree.build(lockfile, %{"a" => "^1.0"})
+      assert NPM.DepTree.count(tree) == 2
+    end
+  end
+
+  describe "Format: package display" do
+    test "package formats name@version" do
+      assert NPM.Format.package("lodash", "4.17.21") == "lodash@4.17.21"
+    end
+
+    test "package formats scoped name@version" do
+      assert NPM.Format.package("@babel/core", "7.0.0") == "@babel/core@7.0.0"
+    end
+  end
+
   describe "Exports: map patterns" do
     test "single dot entry" do
       assert {:ok, "./index.js"} = NPM.Exports.resolve(%{"." => "./index.js"}, ".")
