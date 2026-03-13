@@ -344,6 +344,34 @@ defmodule NPMTest do
     end
   end
 
+  # --- Install spec parsing with options ---
+
+  describe "parse_package_spec with version types" do
+    test "exact version" do
+      assert {"lodash", "4.17.21"} = NpmInstall.parse_package_spec("lodash@4.17.21")
+    end
+
+    test "caret range" do
+      assert {"lodash", "^4.17"} = NpmInstall.parse_package_spec("lodash@^4.17")
+    end
+
+    test "tilde range" do
+      assert {"lodash", "~4.17.0"} = NpmInstall.parse_package_spec("lodash@~4.17.0")
+    end
+
+    test "x-range" do
+      assert {"lodash", "4.x"} = NpmInstall.parse_package_spec("lodash@4.x")
+    end
+
+    test "star range" do
+      assert {"lodash", "*"} = NpmInstall.parse_package_spec("lodash@*")
+    end
+
+    test "greater-than range" do
+      assert {"lodash", ">=4.0.0"} = NpmInstall.parse_package_spec("lodash@>=4.0.0")
+    end
+  end
+
   # --- Lockfile ---
 
   describe "Lockfile.read" do
@@ -482,8 +510,19 @@ defmodule NPMTest do
       assert :ok = NPM.Tarball.verify_integrity("anything", "")
     end
 
+    test "passes for correct sha256" do
+      data = "hello world"
+      hash = :crypto.hash(:sha256, data) |> Base.encode64()
+      assert :ok = NPM.Tarball.verify_integrity(data, "sha256-#{hash}")
+    end
+
+    test "fails for wrong sha256 hash" do
+      assert {:error, :integrity_mismatch} =
+               NPM.Tarball.verify_integrity("hello", "sha256-wronghash==")
+    end
+
     test "passes for unknown hash algorithm" do
-      assert :ok = NPM.Tarball.verify_integrity("anything", "sha256-something==")
+      assert :ok = NPM.Tarball.verify_integrity("anything", "sha384-something==")
     end
   end
 

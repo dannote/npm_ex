@@ -36,6 +36,11 @@ defmodule NPM.Tarball do
     if actual == expected_b64, do: :ok, else: {:error, :integrity_mismatch}
   end
 
+  def verify_integrity(body, "sha256-" <> expected_b64) do
+    actual = :crypto.hash(:sha256, body) |> Base.encode64()
+    if actual == expected_b64, do: :ok, else: {:error, :integrity_mismatch}
+  end
+
   def verify_integrity(body, "sha1-" <> expected_b64) do
     actual = :crypto.hash(:sha, body) |> Base.encode64()
     if actual == expected_b64, do: :ok, else: {:error, :integrity_mismatch}

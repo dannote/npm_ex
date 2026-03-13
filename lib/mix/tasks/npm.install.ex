@@ -33,7 +33,12 @@ defmodule Mix.Tasks.Npm.Install do
   defp parse_args(args) do
     {parsed, rest, _} =
       OptionParser.parse(args,
-        strict: [frozen: :boolean, production: :boolean, save_dev: :boolean]
+        strict: [
+          frozen: :boolean,
+          production: :boolean,
+          save_dev: :boolean,
+          save_exact: :boolean
+        ]
       )
 
     {parsed, rest}
@@ -41,7 +46,7 @@ defmodule Mix.Tasks.Npm.Install do
 
   defp install_spec(spec, opts) do
     {name, range} = parse_package_spec(spec)
-    add_opts = if opts[:save_dev], do: [dev: true], else: []
+    add_opts = Enum.filter([dev: opts[:save_dev], exact: opts[:save_exact]], &elem(&1, 1))
     NPM.add(name, range, add_opts)
   end
 

@@ -51,7 +51,7 @@ defmodule NPM do
   """
   @spec add(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def add(name, range \\ "latest", opts \\ []) do
-    range = if range == "latest", do: resolve_latest(name), else: range
+    range = if range == "latest", do: resolve_latest(name, opts), else: range
 
     with range_str when is_binary(range_str) <- range,
          :ok <- NPM.PackageJSON.add_dep(name, range_str, "package.json", opts) do
@@ -201,6 +201,8 @@ defmodule NPM do
   end
 
   defp full_install(deps) do
+    {:ok, old_lockfile} = NPM.Lockfile.read()
+
     {resolve_us, result} =
       :timer.tc(fn ->
         NPM.Resolver.clear_cache()
@@ -212,6 +214,7 @@ defmodule NPM do
         Mix.shell().info("Resolved #{map_size(resolved)} packages in #{format_ms(resolve_us)}")
 
         lockfile = build_lockfile(resolved)
+        print_lockfile_diff(old_lockfile, lockfile)
         NPM.Lockfile.write(lockfile)
         link_from_lockfile(lockfile)
 
@@ -294,14 +297,14 @@ defmodule NPM do
     end)
   end
 
-  defp resolve_latest(name) do
+  defp resolve_latest(name, opts) do
     case NPM.Registry.get_packument(name) do
-      {:ok, packument} -> latest_stable_range(packument)
+      {:ok, packument} -> latest_stable_range(packument, opts)
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp latest_stable_range(packument) do
+  defp latest_stable_range(packument, opts) do
     packument.versions
     |> Map.keys()
     |> Enum.flat_map(&parse_stable_version/1)
@@ -309,7 +312,7 @@ defmodule NPM do
     |> List.last()
     |> case do
       nil -> {:error, :no_versions}
-      v -> "^#{v}"
+      v -> if opts[:exact], do: "#{v}", else: "^#{v}"
     end
   end
 
@@ -318,6 +321,24 @@ defmodule NPM do
       {:ok, ver} -> if ver.pre == [], do: [ver], else: []
       :error -> []
     end
+  end
+
+  defp print_lockfile_diff(old, new) when old == %{}, do: new
+  defp print_lockfile_diff(old, new) when old == new, do: :ok
+
+  defp print_lockfile_diff(old, new) do
+    added = Map.keys(new) -- Map.keys(old)
+    removed = Map.keys(old) -- Map.keys(new)
+
+    updated =
+      for key <- Map.keys(new),
+          Map.has_key?(old, key),
+          old[key].version != new[key].version,
+          do: key
+
+    Enum.each(added, &Mix.shell().info("  + #{&1}@#{new[&1].version}"))
+    Enum.each(removed, &Mix.shell().info("  - #{&1}"))
+    Enum.each(updated, &Mix.shell().info("  ↑ #{&1} #{old[&1].version} → #{new[&1].version}"))
   end
 
   defp format_ms(microseconds) do
