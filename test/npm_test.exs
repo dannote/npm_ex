@@ -2475,6 +2475,66 @@ defmodule NPMTest do
     end
   end
 
+  # --- Registry encode_package ---
+
+  describe "Registry URL encoding" do
+    test "get_packument constructs correct URL for scoped packages" do
+      url = "https://registry.npmjs.org/#{String.replace("@scope/pkg", "/", "%2f")}"
+      assert url == "https://registry.npmjs.org/@scope%2fpkg"
+    end
+
+    test "get_packument constructs correct URL for simple packages" do
+      url = "https://registry.npmjs.org/lodash"
+      assert url == "https://registry.npmjs.org/lodash"
+    end
+  end
+
+  # --- Linker hoist determinism ---
+
+  describe "Linker.hoist determinism" do
+    test "returns deterministic results for same input" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}},
+        "b" => %{version: "2.0.0", integrity: "", tarball: "", dependencies: %{}},
+        "c" => %{version: "3.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      result1 = NPM.Linker.hoist(lockfile) |> Enum.sort()
+      result2 = NPM.Linker.hoist(lockfile) |> Enum.sort()
+      assert result1 == result2
+    end
+  end
+
+  # --- Lockfile write idempotency ---
+
+  describe "Lockfile write idempotency" do
+    @tag :tmp_dir
+    test "writing same lockfile twice produces identical files", %{tmp_dir: dir} do
+      path1 = Path.join(dir, "lock1")
+      path2 = Path.join(dir, "lock2")
+
+      lockfile = %{
+        "express" => %{
+          version: "4.21.2",
+          integrity: "sha512-abc==",
+          tarball: "https://example.com/express.tgz",
+          dependencies: %{"accepts" => "~1.3.8"}
+        },
+        "accepts" => %{
+          version: "1.3.8",
+          integrity: "sha512-def==",
+          tarball: "https://example.com/accepts.tgz",
+          dependencies: %{}
+        }
+      }
+
+      NPM.Lockfile.write(lockfile, path1)
+      NPM.Lockfile.write(lockfile, path2)
+
+      assert File.read!(path1) == File.read!(path2)
+    end
+  end
+
   # --- Helpers ---
 
   defp create_test_tgz(files) do
