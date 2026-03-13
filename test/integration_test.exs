@@ -761,6 +761,22 @@ defmodule NPM.IntegrationTest do
     end
   end
 
+  describe "npm compatibility: SemverUtil with real packument versions" do
+    test "max_satisfying finds best lodash for ^4.0.0" do
+      raw = get_raw_packument("lodash")
+      versions = Map.keys(raw["versions"])
+      {:ok, best} = NPM.SemverUtil.max_satisfying(versions, "^4.0.0")
+      assert String.starts_with?(best, "4.")
+    end
+
+    test "filter returns only matching versions" do
+      raw = get_raw_packument("is-number")
+      versions = Map.keys(raw["versions"])
+      matches = NPM.SemverUtil.filter(versions, "^7.0.0")
+      assert Enum.all?(matches, &String.starts_with?(&1, "7."))
+    end
+  end
+
   describe "npm compatibility: Exports field on real packages" do
     test "chalk 5.x has type: module" do
       raw = get_raw_packument("chalk")
