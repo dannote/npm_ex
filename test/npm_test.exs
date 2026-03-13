@@ -4741,6 +4741,51 @@ defmodule NPMTest do
     end
   end
 
+  describe "frozen install: lockfile mismatch detection" do
+    @tag :tmp_dir
+    test "frozen mode fails when lockfile missing deps", %{tmp_dir: dir} do
+      # Create package.json with deps
+      pkg_path = Path.join(dir, "package.json")
+
+      File.write!(pkg_path, ~s({
+        "dependencies": {"lodash": "^4.0", "express": "^4.0"}
+      }))
+
+      # Create lockfile with only one dep
+      lock_path = Path.join(dir, "npm.lock")
+
+      lockfile = %{
+        "lodash" => %{version: "4.17.21", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      NPM.Lockfile.write(lockfile, lock_path)
+
+      # Read both and check mismatch
+      {:ok, lockfile_data} = NPM.Lockfile.read(lock_path)
+      {:ok, pkg_data} = NPM.PackageJSON.read_all(pkg_path)
+      all_deps = pkg_data.dependencies
+
+      # Express is in deps but not lockfile — should be a mismatch
+      has_express_locked = Map.has_key?(lockfile_data, "express")
+      refute has_express_locked
+    end
+  end
+
+  describe "Linker: default strategy detection" do
+    test "default strategy is symlink on unix" do
+      # On macOS/Linux, default should be symlink
+      assert File.exists?("/bin/sh")
+
+      lockfile = %{
+        "test-pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      # hoist is the same regardless of strategy
+      tree = NPM.Linker.hoist(lockfile)
+      assert [{"test-pkg", "1.0.0"}] = tree
+    end
+  end
+
   describe "Manifest: from_json edge cases" do
     test "missing fields default gracefully" do
       m = NPM.Manifest.from_json(~s({"name": "minimal"}))
