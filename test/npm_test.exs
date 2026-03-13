@@ -4556,6 +4556,74 @@ defmodule NPMTest do
     end
   end
 
+  describe "Validator: version range validation" do
+    test "accepts valid semver ranges" do
+      assert :ok = NPM.Validator.validate_range("^1.0.0")
+      assert :ok = NPM.Validator.validate_range("~2.3.0")
+      assert :ok = NPM.Validator.validate_range(">=1.0.0 <3.0.0")
+      assert :ok = NPM.Validator.validate_range("1.0.0")
+    end
+
+    test "accepts * range" do
+      assert :ok = NPM.Validator.validate_range("*")
+    end
+
+    test "rejects invalid ranges" do
+      assert {:error, _} = NPM.Validator.validate_range("not a version")
+      assert {:error, _} = NPM.Validator.validate_range("abc.def.ghi")
+    end
+  end
+
+  describe "Validator: package name validation edge cases" do
+    test "rejects names longer than 214 characters" do
+      long_name = String.duplicate("a", 215)
+      assert {:error, _} = NPM.Validator.validate_name(long_name)
+    end
+
+    test "rejects uppercase in name" do
+      assert {:error, _} = NPM.Validator.validate_name("MyPackage")
+    end
+
+    test "rejects names with spaces" do
+      assert {:error, _} = NPM.Validator.validate_name("my package")
+    end
+
+    test "accepts 214-char name" do
+      name = String.duplicate("a", 214)
+      assert :ok = NPM.Validator.validate_name(name)
+    end
+  end
+
+  describe "NodeModules: diff behavior" do
+    @tag :tmp_dir
+    test "diff detects extra and missing packages", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm, "extra-pkg"))
+
+      lockfile = %{
+        "missing-pkg" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      {missing, extra} = NPM.NodeModules.diff(lockfile, nm)
+      assert "missing-pkg" in missing
+      assert "extra-pkg" in extra
+    end
+
+    @tag :tmp_dir
+    test "diff returns empty when in sync", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(Path.join(nm, "pkg-a"))
+
+      lockfile = %{
+        "pkg-a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      {missing, extra} = NPM.NodeModules.diff(lockfile, nm)
+      assert missing == []
+      assert extra == []
+    end
+  end
+
   describe "Lifecycle: script name detection" do
     @tag :tmp_dir
     test "ignores non-lifecycle scripts", %{tmp_dir: dir} do
