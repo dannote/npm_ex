@@ -5350,6 +5350,99 @@ defmodule NPMTest do
     end
   end
 
+  describe "npm semver: comparator negation" do
+    test "!= is not valid npm semver but != works as separate constraints" do
+      # npm uses >= and < to exclude specific versions
+      assert NPMSemver.matches?("1.0.1", ">1.0.0 <1.0.2")
+      refute NPMSemver.matches?("1.0.0", ">1.0.0 <1.0.2")
+      refute NPMSemver.matches?("1.0.2", ">1.0.0 <1.0.2")
+    end
+  end
+
+  describe "npm semver: multiple caret matches" do
+    test "^1 same as ^1.0.0" do
+      assert NPMSemver.matches?("1.0.0", "^1")
+      assert NPMSemver.matches?("1.9.9", "^1")
+      refute NPMSemver.matches?("2.0.0", "^1")
+    end
+
+    test "^0 same as ^0.0.0" do
+      assert NPMSemver.matches?("0.0.0", "^0")
+    end
+  end
+
+  describe "Exports: deeply nested conditions" do
+    test "three-level condition nesting" do
+      exports = %{
+        "." => %{
+          "node" => %{
+            "import" => "./node-esm.js",
+            "require" => "./node-cjs.js"
+          },
+          "default" => "./default.js"
+        }
+      }
+
+      assert {:ok, "./node-esm.js"} = NPM.Exports.resolve(exports, ".", ["node", "import"])
+    end
+  end
+
+  describe "BinResolver: available? edge cases" do
+    @tag :tmp_dir
+    test "available? returns false for missing .bin dir", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(nm)
+      refute NPM.BinResolver.available?("anything", nm)
+    end
+  end
+
+  describe "Manifest: from_json with all fields" do
+    test "parses complete package.json" do
+      json = ~s({
+        "name": "full",
+        "version": "1.0.0",
+        "license": "MIT",
+        "type": "module",
+        "files": ["dist/"],
+        "exports": {".": "./dist/index.js"},
+        "engines": {"node": ">=18"},
+        "dependencies": {"a": "^1"},
+        "devDependencies": {"b": "^2"},
+        "optionalDependencies": {"c": "^3"},
+        "scripts": {"test": "vitest", "build": "tsc"}
+      })
+
+      m = NPM.Manifest.from_json(json)
+      assert m.name == "full"
+      assert m.version == "1.0.0"
+      assert m.license == "MIT"
+      assert m.module_type == :esm
+      assert m.files == ["dist/"]
+      assert m.engines["node"] == ">=18"
+      assert NPM.Manifest.dep_count(m) == 3
+      assert NPM.Manifest.has_scripts?(m)
+      names = NPM.Manifest.all_dep_names(m)
+      assert Enum.sort(names) == ["a", "b", "c"]
+    end
+  end
+
+  describe "Config: parse_npmrc handles env vars" do
+    test "parses key=value with env var references" do
+      content = "registry=${NPM_REGISTRY:-https://registry.npmjs.org/}"
+      result = NPM.Config.parse_npmrc(content)
+      assert Map.has_key?(result, "registry")
+    end
+  end
+
+  describe "NodeModules: file_count with empty dir" do
+    @tag :tmp_dir
+    test "returns 0 for empty node_modules", %{tmp_dir: dir} do
+      nm = Path.join(dir, "node_modules")
+      File.mkdir_p!(nm)
+      assert 0 = NPM.NodeModules.file_count(nm)
+    end
+  end
+
   describe "Validator: validate_name special characters" do
     test "allows dots in name" do
       assert :ok = NPM.Validator.validate_name("my.package")

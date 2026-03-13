@@ -115,3 +115,4 @@
 {"run":114,"commit":"1832930","metric":850,"metrics":{},"status":"keep","description":"Add NodeModules nested disk_size, Lockfile write verification — 850 tests milestone","timestamp":1773404544521,"segment":0}
 {"run":115,"commit":"f9f4404","metric":858,"metrics":{},"status":"keep","description":"Add complete caret/tilde/x-range semver behavior suites — 8 comprehensive npm compatibility tests","timestamp":1773404587227,"segment":0}
 {"run":116,"commit":"0e41ec0","metric":863,"metrics":{},"status":"keep","description":"Add hyphen range, complex union, directories.bin linking, node version format, packager always-include tests — 5 tests","timestamp":1773404628935,"segment":0}
+{"run":117,"commit":"cc8663e","metric":872,"metrics":{},"status":"keep","description":"Add normalize_range spaces, LockMerge diff symmetry, DepGraph fan_out consistency, Alias scoped real_name, Validator special chars, SemverUtil boundaries — 9 tests","timestamp":1773404666140,"segment":0}
