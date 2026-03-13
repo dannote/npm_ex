@@ -1,16 +1,18 @@
 # Autoresearch Ideas
 
-## Implemented (91 lib modules, 98 test files, 2000 tests)
+## Status: 124 lib modules, 135 test files, 2500 tests
 
 ## New Modules
-- `NPM.Validate` — package.json schema validation (required fields, types, known fields, warn unknown)
-- `NPM.Engines` — engine field parsing/matching (node, npm, yarn version constraints)
-- `NPM.Funding` — funding field parsing (url, type, multiple funders)
-- `NPM.DepRange` — dependency range analysis (how many pinned, floated, star, url deps)
-- `NPM.InstallStrategy` — hoisted vs nested vs isolated install strategies
-- `NPM.NodeVersion` — .nvmrc/.node-version/.tool-versions parsing
-- `NPM.Overrides` extensions — flatten, apply, validate override specs
-- `NPM.Alias` extensions — resolve npm:pkg@ver aliases, detect cycles
+- `NPM.Alias` extensions — resolve npm:pkg@ver aliases, detect alias cycles, expand aliases in lockfile
+- `NPM.Gitignore` — generate/validate .gitignore entries for node_modules, lockfiles
+- `NPM.PackageUpdate` — compute update operations (major/minor/patch updates available per package)
+- `NPM.DependencyGraph` — full transitive closure, shortest path between packages
+- `NPM.ManifestDiff` — diff two package.json files (added/removed/changed deps, scripts)
+- `NPM.ScriptRunner` — validate script names, detect common patterns (build, test, lint)
+- `NPM.ReleaseNotes` — extract release notes from changelog for specific version ranges
+- `NPM.IntegrityCheck` — verify installed packages match lockfile (beyond just file existence)
+- `NPM.NpmrcMerge` — multi-layer .npmrc resolution (project → user → global)
+- `NPM.DepConflict` — detect and report version conflicts between dependency groups
 
 ## More Tests for Existing Modules
 - Registry error handling paths (network failures, invalid JSON, 404)
@@ -25,5 +27,4 @@
 ## Enhance Existing
 - Workspace: workspace:* protocol range support
 - CI: clean_and_install! action
-- Link: global link registry
-- Exec: auto-install missing binaries
+- Overrides: flatten nested overrides, validate override specs
