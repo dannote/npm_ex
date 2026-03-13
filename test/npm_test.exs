@@ -2229,6 +2229,62 @@ defmodule NPMTest do
     end
   end
 
+  # --- Cache.package_dir with various names ---
+
+  describe "Cache.package_dir patterns" do
+    test "handles simple name" do
+      path = NPM.Cache.package_dir("lodash", "4.17.21")
+      assert String.ends_with?(path, "cache/lodash/4.17.21")
+    end
+
+    test "handles hyphenated name" do
+      path = NPM.Cache.package_dir("is-number", "7.0.0")
+      assert String.ends_with?(path, "cache/is-number/7.0.0")
+    end
+
+    test "handles scoped package" do
+      path = NPM.Cache.package_dir("@babel/core", "7.24.0")
+      assert String.ends_with?(path, "cache/@babel/core/7.24.0")
+    end
+
+    test "handles deeply scoped package" do
+      path = NPM.Cache.package_dir("@angular/compiler-cli", "18.0.0")
+      assert String.ends_with?(path, "cache/@angular/compiler-cli/18.0.0")
+    end
+  end
+
+  # --- Tarball multiple file types ---
+
+  describe "Tarball extract various file types" do
+    @tag :tmp_dir
+    test "handles nested package.json with dependencies", %{tmp_dir: dir} do
+      pkg_json = ~s({"name":"test","version":"1.0.0","dependencies":{"dep":"^1.0"}})
+      tgz = create_test_tgz(%{"package/package.json" => pkg_json})
+
+      assert {:ok, 1} = NPM.Tarball.extract(tgz, dir)
+      content = File.read!(Path.join(dir, "package.json")) |> :json.decode()
+      assert content["name"] == "test"
+      assert content["dependencies"]["dep"] == "^1.0"
+    end
+
+    @tag :tmp_dir
+    test "handles multiple nested directories", %{tmp_dir: dir} do
+      files = %{
+        "package/src/index.js" => "main",
+        "package/src/utils/helper.js" => "helper",
+        "package/dist/bundle.js" => "bundled",
+        "package/README.md" => "# Test"
+      }
+
+      tgz = create_test_tgz(files)
+      assert {:ok, 4} = NPM.Tarball.extract(tgz, dir)
+      assert File.read!(Path.join(dir, "src/index.js")) == "main"
+      assert File.read!(Path.join(dir, "src/utils/helper.js")) == "helper"
+      assert File.read!(Path.join(dir, "dist/bundle.js")) == "bundled"
+      assert File.read!(Path.join(dir, "README.md")) == "# Test"
+    end
+  end
+
   # --- Lockfile sorted listing ---
 
   describe "Lockfile listing" do
