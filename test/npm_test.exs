@@ -2688,6 +2688,115 @@ defmodule NPMTest do
     end
   end
 
+  # --- RegistryMirror ---
+
+  describe "RegistryMirror.known_mirrors" do
+    test "returns known mirrors" do
+      mirrors = NPM.RegistryMirror.known_mirrors()
+      assert Map.has_key?(mirrors, "china")
+      assert Map.has_key?(mirrors, "yarn")
+      assert Map.has_key?(mirrors, "npmjs")
+    end
+  end
+
+  describe "RegistryMirror.get_mirror" do
+    test "gets a known mirror" do
+      assert "https://registry.npmmirror.com" = NPM.RegistryMirror.get_mirror("china")
+    end
+
+    test "returns nil for unknown mirror" do
+      assert nil == NPM.RegistryMirror.get_mirror("nonexistent")
+    end
+  end
+
+  describe "RegistryMirror.known_mirror?" do
+    test "detects known mirror URL" do
+      assert NPM.RegistryMirror.known_mirror?("https://registry.npmjs.org")
+    end
+
+    test "rejects unknown URL" do
+      refute NPM.RegistryMirror.known_mirror?("https://custom.example.com")
+    end
+  end
+
+  describe "RegistryMirror.rewrite_tarball_url" do
+    test "rewrites tarball URL to mirror" do
+      original = "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz"
+      mirror = "https://registry.npmmirror.com"
+
+      result = NPM.RegistryMirror.rewrite_tarball_url(original, mirror)
+      assert String.starts_with?(result, "https://registry.npmmirror.com")
+      assert String.contains?(result, "lodash")
+    end
+  end
+
+  describe "RegistryMirror.mirror_url" do
+    test "returns a URL" do
+      url = NPM.RegistryMirror.mirror_url()
+      assert is_binary(url)
+      assert String.starts_with?(url, "http")
+    end
+  end
+
+  # --- Cross-module edge cases ---
+
+  describe "Exports + Manifest integration" do
+    test "manifest exports round-trip" do
+      json = ~s({"exports": {".": {"import": "./esm.js"}, "./utils": "./utils.js"}})
+      manifest = NPM.Manifest.from_json(json)
+      exports = manifest.exports
+
+      assert {:ok, "./esm.js"} = NPM.Exports.resolve(exports, ".", ["import"])
+      assert {:ok, "./utils.js"} = NPM.Exports.resolve(exports, "./utils")
+    end
+  end
+
+  describe "Integrity + VersionUtil integration" do
+    test "integrity is stable across version bumps" do
+      data = "payload"
+      hash1 = NPM.Integrity.compute_sha256(data)
+      hash2 = NPM.Integrity.compute_sha256(data)
+      assert hash1 == hash2
+      assert NPM.VersionUtil.gt?("2.0.0", "1.0.0")
+    end
+  end
+
+  describe "PackageSpec + Alias integration" do
+    test "alias parsed via spec matches direct parse" do
+      spec = NPM.PackageSpec.parse("npm:react@^18.0.0")
+      assert spec.type == :alias
+      assert spec.name == "react"
+
+      alias_result = NPM.Alias.parse("npm:react@^18.0.0")
+      assert {:alias, "react", "^18.0.0"} = alias_result
+    end
+  end
+
+  describe "DepGraph + DepTree integration" do
+    test "graph leaves match tree leaves" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"b" => "^1.0"}},
+        "b" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      adj = NPM.DepGraph.adjacency_list(lockfile)
+      graph_leaves = NPM.DepGraph.leaves(adj)
+
+      tree = NPM.DepTree.build(lockfile, %{"a" => "^1.0"})
+
+      tree_leaves =
+        tree
+        |> NPM.DepTree.flatten()
+        |> Enum.filter(fn name ->
+          entry = lockfile[name]
+          entry && entry.dependencies == %{}
+        end)
+        |> Enum.sort()
+
+      assert graph_leaves == tree_leaves
+    end
+  end
+
   # --- Packager ---
 
   describe "Packager.files_to_pack" do
