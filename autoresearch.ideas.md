@@ -5,19 +5,28 @@
 - ~~PeerDeps module~~ (extract, check, format_warnings, optional peers)
 - ~~Dedupe module~~ (find_duplicates, best_shared_version, savings_estimate)
 - ~~Workspace module~~ (discover, dep_graph, build_order, topo sort)
+- ~~Outdated module~~ (check, filter_by_type, summary)
+- ~~Audit module~~ (check, fixable?, filter_by_severity, compare_severity)
+- ~~Why module~~ (explain, direct?, dependents, format_reasons)
+- ~~Diff module~~ (compare_files, file_hashes, summary, format_changes)
+- ~~Fund module~~ (extract, collect, group_by_url, summary)
 - ~~Split monolith test file into per-module files~~
 
-## Medium Priority: Real Features
-- `npm ci --frozen-lockfile` strict mode — verify lockfile-to-package.json sync more thoroughly
-- `npm why` trace through nested deps to explain why a package is installed
-- Pre/post install script execution (lifecycle hooks — currently only detection)
-- `npm pack` integration with tarball creation from local project
-- `NPM.Audit` — security advisory checking against known vulnerability databases
-- `NPM.Outdated` — compare installed versions against latest available
+## Medium Priority: New Modules
+- `NPM.Prune` — remove extraneous packages from node_modules not in lockfile
+- `NPM.Pack` — create tarball from local project (the reverse of extract)
+- `NPM.Shrinkwrap` — freeze lockfile to prevent changes
+- `NPM.License` — scan and report licenses across dependency tree
+- `NPM.Size` — estimate install size, disk usage per package
+- `NPM.DepCheck` — find unused dependencies in a project
 
-## Lower Priority: Polish
-- `npm diff` between installed and registry versions
-- `npm fund` with real funding URL display
-- bundleDependencies handling in tarballs
-- `npm shrinkwrap` lockfile freezing
-- Progress bar / streaming output during multi-package downloads
+## Medium Priority: Enhance Existing Modules
+- Pre/post install script execution in Hooks (currently only detection)
+- bundleDependencies handling in Tarball
+- devDependencies support in Resolver (--production flag to skip)
+- Progress/streaming output during multi-package downloads
+
+## Lower Priority: More Tests for Existing Code
+- Edge cases in existing modules (Resolver, Linker, Lockfile)
+- Error handling paths in Registry, Tarball, Cache
+- Concurrent access patterns in Cache, NodeModules
