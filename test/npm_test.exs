@@ -2390,6 +2390,63 @@ defmodule NPMTest do
     end
   end
 
+  # --- Validator with scoped names ---
+
+  describe "Validator scoped package names" do
+    test "accepts standard scoped name" do
+      assert :ok = NPM.Validator.validate_name("@angular/core")
+    end
+
+    test "accepts scoped name with hyphens" do
+      assert :ok = NPM.Validator.validate_name("@my-scope/my-package")
+    end
+  end
+
+  # --- Config with env var override ---
+
+  describe "Config registry priority" do
+    test "env var overrides everything" do
+      original = System.get_env("NPM_REGISTRY")
+      System.put_env("NPM_REGISTRY", "https://custom.registry.io")
+
+      assert NPM.Config.registry() == "https://custom.registry.io"
+
+      if original,
+        do: System.put_env("NPM_REGISTRY", original),
+        else: System.delete_env("NPM_REGISTRY")
+    end
+
+    test "defaults to npmjs.org" do
+      original = System.get_env("NPM_REGISTRY")
+      System.delete_env("NPM_REGISTRY")
+
+      result = NPM.Config.registry()
+      assert result =~ "registry.npmjs.org" or result =~ "npm"
+
+      if original, do: System.put_env("NPM_REGISTRY", original)
+    end
+  end
+
+  # --- PackageJSON read various fields ---
+
+  describe "PackageJSON comprehensive read" do
+    @tag :tmp_dir
+    test "read returns only dependencies, not devDeps", %{tmp_dir: dir} do
+      path = Path.join(dir, "package.json")
+
+      File.write!(path, ~s({
+        "dependencies": {"a": "^1.0"},
+        "devDependencies": {"b": "^2.0"},
+        "optionalDependencies": {"c": "^3.0"}
+      }))
+
+      {:ok, deps} = NPM.PackageJSON.read(path)
+      assert deps == %{"a" => "^1.0"}
+      refute Map.has_key?(deps, "b")
+      refute Map.has_key?(deps, "c")
+    end
+  end
+
   # --- Tarball.verify_integrity comprehensive ---
 
   describe "Tarball integrity comprehensive" do
