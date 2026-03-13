@@ -4357,6 +4357,104 @@ defmodule NPMTest do
     end
   end
 
+  describe "Packager: pack file discovery" do
+    @tag :tmp_dir
+    test "files_to_pack finds project files", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "package.json"), ~s({"name":"test","version":"1.0.0"}))
+      File.write!(Path.join(dir, "index.js"), "module.exports = {}")
+      File.write!(Path.join(dir, "README.md"), "# Test")
+      File.mkdir_p!(Path.join(dir, "node_modules/dep"))
+      File.write!(Path.join([dir, "node_modules", "dep", "index.js"]), "")
+
+      files = NPM.Packager.files_to_pack(dir)
+      basenames = Enum.map(files, &Path.basename/1)
+
+      assert "package.json" in basenames
+      assert "index.js" in basenames
+      # node_modules should be excluded
+      refute Enum.any?(files, &String.contains?(&1, "node_modules"))
+    end
+
+    @tag :tmp_dir
+    test "pack_size returns byte count", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "package.json"), ~s({"name":"test"}))
+      File.write!(Path.join(dir, "index.js"), String.duplicate("x", 1000))
+
+      size = NPM.Packager.pack_size(dir)
+      assert size > 1000
+    end
+  end
+
+  describe "Lockfile: utility functions" do
+    @tag :tmp_dir
+    test "has_package? checks lockfile contents", %{tmp_dir: dir} do
+      path = Path.join(dir, "npm.lock")
+
+      lockfile = %{
+        "lodash" => %{
+          version: "4.17.21",
+          integrity: "sha512-x",
+          tarball: "url",
+          dependencies: %{}
+        }
+      }
+
+      NPM.Lockfile.write(lockfile, path)
+      assert NPM.Lockfile.has_package?("lodash", path)
+      refute NPM.Lockfile.has_package?("react", path)
+    end
+
+    @tag :tmp_dir
+    test "package_names lists all locked packages", %{tmp_dir: dir} do
+      path = Path.join(dir, "npm.lock")
+
+      lockfile = %{
+        "lodash" => %{version: "4.17.21", integrity: "", tarball: "", dependencies: %{}},
+        "react" => %{version: "18.2.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      NPM.Lockfile.write(lockfile, path)
+      {:ok, names} = NPM.Lockfile.package_names(path)
+      assert "lodash" in names
+      assert "react" in names
+    end
+
+    @tag :tmp_dir
+    test "get_package retrieves specific entry", %{tmp_dir: dir} do
+      path = Path.join(dir, "npm.lock")
+
+      lockfile = %{
+        "lodash" => %{
+          version: "4.17.21",
+          integrity: "sha512-x",
+          tarball: "url",
+          dependencies: %{}
+        }
+      }
+
+      NPM.Lockfile.write(lockfile, path)
+      {:ok, entry} = NPM.Lockfile.get_package("lodash", path)
+      assert entry.version == "4.17.21"
+    end
+
+    @tag :tmp_dir
+    test "lockfile version returns format version", %{tmp_dir: dir} do
+      path = Path.join(dir, "npm.lock")
+      NPM.Lockfile.write(%{}, path)
+      assert NPM.Lockfile.version(path) == 1
+    end
+  end
+
+  describe "Hooks: lifecycle hook configuration" do
+    test "available lists known hook names" do
+      hooks = NPM.Hooks.available()
+      assert :pre_install in hooks
+      assert :post_install in hooks
+      assert :pre_resolve in hooks
+      assert :post_resolve in hooks
+    end
+  end
+
   describe "Format: human-readable output helpers" do
     test "bytes formats file sizes" do
       assert NPM.Format.bytes(0) == "0 B"
