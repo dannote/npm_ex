@@ -5218,6 +5218,42 @@ defmodule NPMTest do
     end
   end
 
+  describe "PackageSpec: git spec patterns" do
+    test "git+https URL" do
+      spec = NPM.PackageSpec.parse("git+https://github.com/user/repo.git")
+      assert spec.type == :git
+    end
+
+    test "git+ssh URL" do
+      spec = NPM.PackageSpec.parse("git+ssh://git@github.com:user/repo.git")
+      assert spec.type == :git
+    end
+  end
+
+  describe "SemverUtil: filter with tilde" do
+    test "tilde constrains to minor version" do
+      versions = ["1.2.0", "1.2.5", "1.3.0", "2.0.0"]
+      result = NPM.SemverUtil.filter(versions, "~1.2.0")
+      assert "1.2.0" in result
+      assert "1.2.5" in result
+      refute "1.3.0" in result
+    end
+  end
+
+  describe "DepTree: flatten uniqueness" do
+    test "flatten returns unique package names" do
+      lockfile = %{
+        "a" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"c" => "^1.0"}},
+        "b" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{"c" => "^1.0"}},
+        "c" => %{version: "1.0.0", integrity: "", tarball: "", dependencies: %{}}
+      }
+
+      tree = NPM.DepTree.build(lockfile, %{"a" => "^1.0", "b" => "^1.0"})
+      flat = NPM.DepTree.flatten(tree)
+      assert flat == Enum.uniq(flat)
+    end
+  end
+
   describe "Manifest: module_type defaults" do
     test "defaults to CJS without type field" do
       m = NPM.Manifest.from_json(~s({"name":"pkg"}))
