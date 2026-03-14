@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- Speculative parallel prefetch of transitive dependencies before solving — fetches the full dep tree breadth-first with 16 concurrent requests
+- Deduplicate `format_size`/`format_bytes` across 8 modules into `NPM.Format.bytes/1`
+
 ## 0.4.1
 
 - Fix mix tasks crashing with `unknown registry: Req.Finch` when host app hasn't started the HTTP stack
