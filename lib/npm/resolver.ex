@@ -9,6 +9,10 @@ defmodule NPM.Resolver do
   @behaviour HexSolver.Registry
 
   @table :npm_resolver_cache
+  @max_nesting_depth 5
+  @max_prefetch_depth 10
+  @prefetch_concurrency 16
+  @fetch_timeout 30_000
 
   @doc """
   Resolve a set of root dependencies to exact versions.
@@ -44,7 +48,8 @@ defmodule NPM.Resolver do
     end
   end
 
-  defp resolve_with_nesting(_root_deps, _excluded, _nested, depth) when depth > 5 do
+  defp resolve_with_nesting(_root_deps, _excluded, _nested, depth)
+       when depth > @max_nesting_depth do
     {:error, "Too many resolution retries — deeply conflicting dependencies"}
   end
 
@@ -234,7 +239,10 @@ defmodule NPM.Resolver do
     packages
     |> Enum.map(fn {_repo, name} -> name end)
     |> Enum.reject(&cached?/1)
-    |> Task.async_stream(&fetch_and_cache/1, max_concurrency: 8, timeout: 30_000)
+    |> Task.async_stream(&fetch_and_cache/1,
+      max_concurrency: @prefetch_concurrency,
+      timeout: @fetch_timeout
+    )
     |> Stream.run()
 
     :ok
@@ -332,14 +340,17 @@ defmodule NPM.Resolver do
   end
 
   defp prefetch_tree(packages, depth \\ 0)
-  defp prefetch_tree(_packages, depth) when depth > 10, do: :ok
+  defp prefetch_tree(_packages, depth) when depth > @max_prefetch_depth, do: :ok
 
   defp prefetch_tree(packages, depth) do
     to_fetch = Enum.reject(packages, &cached?/1)
 
     if to_fetch != [] do
       to_fetch
-      |> Task.async_stream(&fetch_and_cache/1, max_concurrency: 16, timeout: 30_000)
+      |> Task.async_stream(&fetch_and_cache/1,
+        max_concurrency: @prefetch_concurrency,
+        timeout: @fetch_timeout
+      )
       |> Stream.run()
 
       next_level =
