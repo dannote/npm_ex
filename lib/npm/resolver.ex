@@ -49,6 +49,7 @@ defmodule NPM.Resolver do
   end
 
   defp resolve_with_nesting(root_deps, excluded, nested, depth) do
+    prefetch_tree(Map.keys(root_deps))
     dependencies = build_dependencies(root_deps)
 
     case run_solver(dependencies, excluded) do
@@ -327,6 +328,57 @@ defmodule NPM.Resolver do
 
       error ->
         error
+    end
+  end
+
+  defp prefetch_tree(packages, depth \\ 0)
+  defp prefetch_tree(_packages, depth) when depth > 10, do: :ok
+
+  defp prefetch_tree(packages, depth) do
+    to_fetch = Enum.reject(packages, &cached?/1)
+
+    if to_fetch != [] do
+      to_fetch
+      |> Task.async_stream(&fetch_and_cache/1, max_concurrency: 16, timeout: 30_000)
+      |> Stream.run()
+
+      next_level =
+        to_fetch
+        |> Enum.flat_map(&dep_names_from_cache/1)
+        |> Enum.uniq()
+        |> Enum.reject(&cached?/1)
+
+      if next_level != [], do: prefetch_tree(next_level, depth + 1)
+    end
+  end
+
+  defp dep_names_from_cache(package) do
+    case :ets.lookup(@table, package) do
+      [{_, packument}] ->
+        case latest_version_info(packument) do
+          nil -> []
+          info -> Map.keys(info.dependencies)
+        end
+
+      [] ->
+        []
+    end
+  end
+
+  defp latest_version_info(packument) do
+    packument.versions
+    |> Map.keys()
+    |> Enum.flat_map(fn v ->
+      case Version.parse(v) do
+        {:ok, ver} -> [{v, ver}]
+        :error -> []
+      end
+    end)
+    |> Enum.reject(fn {_, ver} -> ver.pre != [] end)
+    |> Enum.sort_by(&elem(&1, 1), {:desc, Version})
+    |> case do
+      [{latest_str, _} | _] -> Map.get(packument.versions, latest_str)
+      [] -> nil
     end
   end
 end
